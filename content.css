@@ -31,7 +31,31 @@
   z-index: 9999;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   border: 1px solid var(--panel-border);
-  transition: var(--transition);
+  transition: none; /* Remove transition for smooth dragging */
+  resize: both; /* Allow browser-based resizing */
+  min-width: 300px;
+  min-height: 300px;
+  max-width: 800px;
+  max-height: 800px;
+}
+
+/* Resize handle styles */
+.ai-chat-panel .resize-handle {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+  background: var(--accent-primary);
+  border-radius: 0 0 var(--border-radius) 0;
+  opacity: 0.7;
+}
+
+/* When dragging, show a move cursor */
+.ai-chat-panel.dragging {
+  cursor: move;
+  user-select: none;
 }
 
 /* Collapsed state */
@@ -47,7 +71,8 @@
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--panel-border);
-  cursor: pointer;
+  cursor: move; /* Show move cursor on header */
+  touch-action: none; /* Prevent default touch actions for better mobile support */
 }
 
 .ai-chat-header h3 {

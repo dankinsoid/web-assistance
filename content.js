@@ -7,6 +7,16 @@
   let isPanelCollapsed = false;
   let chatMessages = []; // Store chat messages
   
+  // Panel position and dragging state
+  let isDragging = false;
+  let isResizing = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let initialPanelX = 0;
+  let initialPanelY = 0;
+  let initialPanelWidth = 0;
+  let initialPanelHeight = 0;
+  
   // Create and add the chat panel to the page
   function createChatPanel() {
     const panel = document.createElement('div');
@@ -32,6 +42,7 @@
         <textarea class="ai-chat-input" placeholder="Ask AI to help with this page..."></textarea>
         <button class="ai-chat-send">➤</button>
       </div>
+      <div class="resize-handle"></div>
     `;
     
     document.body.appendChild(panel);
@@ -43,18 +54,24 @@
     const input = panel.querySelector('.ai-chat-input');
     const sendBtn = panel.querySelector('.ai-chat-send');
     const quickActionButtons = panel.querySelectorAll('.ai-action-button');
+    const resizeHandle = panel.querySelector('.resize-handle');
     
-    // Toggle collapse state
-    header.addEventListener('click', (e) => {
-      if (e.target === header || e.target.tagName === 'H3') {
-        toggleCollapsePanel();
-      }
+    // Set up dragging functionality
+    setupDraggable(panel, header);
+    
+    // Set up resizing functionality
+    setupResizable(panel, resizeHandle);
+    
+    // Toggle collapse state - only when clicking collapse button, not the whole header
+    
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent header drag event
+      toggleCollapsePanel();
     });
     
-    collapseBtn.addEventListener('click', toggleCollapsePanel);
-    
     // Close the panel
-    closeBtn.addEventListener('click', () => {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent header drag event
       panel.style.display = 'none';
       chatPanelVisible = false;
     });
@@ -122,6 +139,9 @@
     } else {
       panel.style.display = 'flex';
       
+      // Restore saved position and dimensions
+      restorePanelPositionAndSize(panel);
+      
       // Load previous messages or show welcome message
       loadChatMessages().then(messagesLoaded => {
         if (!messagesLoaded) {
@@ -138,6 +158,33 @@
     }
     
     chatPanelVisible = !chatPanelVisible;
+  }
+  
+  // Restore panel position and size from storage
+  function restorePanelPositionAndSize(panel) {
+    chrome.storage.local.get(['panelPosition', 'panelDimensions'], (result) => {
+      // Restore position if saved
+      if (result.panelPosition) {
+        // Check if position is within viewport
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Ensure panel is visible in viewport
+        const left = Math.min(Math.max(0, result.panelPosition.left), viewportWidth - 300);
+        const top = Math.min(Math.max(0, result.panelPosition.top), viewportHeight - 300);
+        
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
+        panel.style.bottom = 'auto';
+        panel.style.right = 'auto';
+      }
+      
+      // Restore dimensions if saved
+      if (result.panelDimensions) {
+        panel.style.width = `${result.panelDimensions.width}px`;
+        panel.style.height = `${result.panelDimensions.height}px`;
+      }
+    });
   }
   
   // Load chat messages from chrome.storage
@@ -1135,6 +1182,176 @@
     }
   });
 
+  // Setup draggable functionality
+  function setupDraggable(panel, dragHandle) {
+    dragHandle.addEventListener('mousedown', startDragging);
+    dragHandle.addEventListener('touchstart', startDragging, { passive: false });
+    
+    function startDragging(e) {
+      // Prevent default to avoid text selection during drag
+      e.preventDefault();
+      
+      // Get event position (works for both mouse and touch)
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      
+      // Get current panel position
+      const rect = panel.getBoundingClientRect();
+      
+      // Store initial positions
+      isDragging = true;
+      dragStartX = clientX;
+      dragStartY = clientY;
+      initialPanelX = rect.left;
+      initialPanelY = rect.top;
+      
+      // Add dragging class
+      panel.classList.add('dragging');
+      
+      // Add event listeners for drag and end
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('touchmove', onDrag, { passive: false });
+      document.addEventListener('mouseup', stopDragging);
+      document.addEventListener('touchend', stopDragging);
+    }
+    
+    function onDrag(e) {
+      if (!isDragging) return;
+      
+      // Get event position (works for both mouse and touch)
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      
+      // Calculate new position
+      const deltaX = clientX - dragStartX;
+      const deltaY = clientY - dragStartY;
+      
+      // Apply new position
+      const newLeft = initialPanelX + deltaX;
+      const newTop = initialPanelY + deltaY;
+      
+      // Update panel position
+      panel.style.left = `${newLeft}px`;
+      panel.style.top = `${newTop}px`;
+      
+      // Remove bottom/right positioning when manually positioned
+      panel.style.bottom = 'auto';
+      panel.style.right = 'auto';
+      
+      // Prevent default to avoid scrolling while dragging on mobile
+      e.preventDefault();
+    }
+    
+    function stopDragging() {
+      if (!isDragging) return;
+      
+      // Reset dragging state
+      isDragging = false;
+      panel.classList.remove('dragging');
+      
+      // Remove event listeners
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('touchmove', onDrag);
+      document.removeEventListener('mouseup', stopDragging);
+      document.removeEventListener('touchend', stopDragging);
+      
+      // Save panel position to storage
+      savePanelPosition(panel);
+    }
+  }
+  
+  // Setup resizable functionality
+  function setupResizable(panel, resizeHandle) {
+    resizeHandle.addEventListener('mousedown', startResizing);
+    resizeHandle.addEventListener('touchstart', startResizing, { passive: false });
+    
+    function startResizing(e) {
+      // Prevent default to avoid text selection during resize
+      e.preventDefault();
+      
+      // Get event position (works for both mouse and touch)
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      
+      // Get current panel dimensions
+      const rect = panel.getBoundingClientRect();
+      
+      // Store initial values
+      isResizing = true;
+      dragStartX = clientX;
+      dragStartY = clientY;
+      initialPanelWidth = rect.width;
+      initialPanelHeight = rect.height;
+      
+      // Add event listeners for resize and end
+      document.addEventListener('mousemove', onResize);
+      document.addEventListener('touchmove', onResize, { passive: false });
+      document.addEventListener('mouseup', stopResizing);
+      document.addEventListener('touchend', stopResizing);
+    }
+    
+    function onResize(e) {
+      if (!isResizing) return;
+      
+      // Get event position (works for both mouse and touch)
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      
+      // Calculate new dimensions
+      const deltaX = clientX - dragStartX;
+      const deltaY = clientY - dragStartY;
+      
+      // Apply new dimensions with min/max constraints
+      const newWidth = Math.max(300, Math.min(800, initialPanelWidth + deltaX));
+      const newHeight = Math.max(300, Math.min(800, initialPanelHeight + deltaY));
+      
+      // Update panel dimensions
+      panel.style.width = `${newWidth}px`;
+      panel.style.height = `${newHeight}px`;
+      
+      // Prevent default to avoid scrolling while resizing on mobile
+      e.preventDefault();
+    }
+    
+    function stopResizing() {
+      if (!isResizing) return;
+      
+      // Reset resizing state
+      isResizing = false;
+      
+      // Remove event listeners
+      document.removeEventListener('mousemove', onResize);
+      document.removeEventListener('touchmove', onResize);
+      document.removeEventListener('mouseup', stopResizing);
+      document.removeEventListener('touchend', stopResizing);
+      
+      // Save panel dimensions to storage
+      savePanelDimensions(panel);
+    }
+  }
+  
+  // Save panel position to storage
+  function savePanelPosition(panel) {
+    const rect = panel.getBoundingClientRect();
+    chrome.storage.local.set({
+      panelPosition: {
+        left: rect.left,
+        top: rect.top
+      }
+    });
+  }
+  
+  // Save panel dimensions to storage
+  function savePanelDimensions(panel) {
+    const rect = panel.getBoundingClientRect();
+    chrome.storage.local.set({
+      panelDimensions: {
+        width: rect.width,
+        height: rect.height
+      }
+    });
+  }
+  
   // Initialize: create panel but keep it hidden
   createChatPanel();
 })();
