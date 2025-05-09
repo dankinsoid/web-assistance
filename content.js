@@ -52,10 +52,10 @@
     chatQuickActions = document.createElement('div');
     chatQuickActions.className = 'ai-chat-quick-actions';
     chatQuickActions.innerHTML = `
-      <button class="ai-action-button" data-action="translate">Translate Page</button>
-      <button class="ai-action-button" data-action="summarize">Summarize</button>
-      <button class="ai-action-button" data-action="highlight">Highlight Keywords</button>
-      <button class="ai-action-button" data-action="click">Click Element</button>
+      <button class="ai-action-button" data-prompt="Translate this page">Translate Page</button>
+      <button class="ai-action-button" data-prompt="Summarize this page">Summarize</button>
+      <button class="ai-action-button" data-prompt="Highlight main keywords on this page">Highlight Keywords</button>
+      <button class="ai-action-button" data-prompt="Help me click an element on this page">Click Element</button>
     `;
 
     chatInputContainer = document.createElement('div');
@@ -125,8 +125,13 @@
     // Quick action buttons
     quickActionButtons.forEach(button => {
       button.addEventListener('click', () => {
-        const action = button.getAttribute('data-action');
-        performAction(action);
+        const prompt = button.getAttribute('data-prompt');
+        if (prompt) {
+          sendMessage(prompt);
+          // Optionally, clear the main input field if the user was typing something
+          const inputField = chatInputContainer.querySelector('.ai-chat-input');
+          if (inputField) inputField.value = ''; 
+        }
       });
     });
     
