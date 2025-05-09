@@ -130,34 +130,33 @@
     }
   }
   
-  // Toggle the visibility of the chat panel
-  function toggleChatPanel() {
+  // Ensure the chat panel is visible
+  function ensureChatPanelIsVisible() {
     const panel = document.querySelector('.ai-chat-panel') || createChatPanel();
     
-    if (chatPanelVisible) {
-      panel.style.display = 'none';
-    } else {
-      panel.style.display = 'flex';
-      
-      // Restore saved position and dimensions
+    const needsInitialization = !chatPanelVisible; // Check if it was previously hidden or is being shown for the first time
+
+    panel.style.display = 'flex'; // Always ensure it's set to be visible
+
+    if (needsInitialization) { 
+      // This block runs only if the panel was not visible and is now being made visible.
       restorePanelPositionAndSize(panel);
       
-      // Load previous messages or show welcome message
       loadChatMessages().then(messagesLoaded => {
         if (!messagesLoaded) {
-          // Add a welcome message if no previous messages
+          // Add a welcome message if no previous messages were loaded for this page
           addMessage("Hello! I'm your AI assistant. I can help you with this page. Try asking me to translate content, highlight information, click elements, or perform other tasks.", 'ai');
           
-          // Add quick suggestions based on the page content
           const pageTopic = inferPageTopic();
           if (pageTopic) {
             addMessage(`This page seems to be about ${pageTopic}. Would you like me to summarize it or highlight key points?`, 'ai');
           }
         }
       });
+      chatPanelVisible = true; // Update state to visible
     }
-    
-    chatPanelVisible = !chatPanelVisible;
+    // If it was already visible (chatPanelVisible was true), panel.style.display = 'flex' just re-affirms it.
+    // We don't re-run restorePanelPositionAndSize or loadChatMessages if it was already visible.
   }
   
   // Restore panel position and size from storage
@@ -1135,8 +1134,8 @@
   
   // Set up message listeners for background communication
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'toggleChatPanel') {
-      toggleChatPanel();
+    if (message.action === 'openChatPanel') {
+      ensureChatPanelIsVisible();
       sendResponse({success: true});
     } else if (message.action === 'resetSettings') {
       // Reset any page-specific settings
