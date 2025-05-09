@@ -355,34 +355,40 @@
         
         // Check if we have messages for this URL
         if (result.chatMessages && result.chatMessages.length > 0 && result.pageUrl === window.location.href) {
-          chatMessages = result.chatMessages;
+          chatMessages = result.chatMessages; // This now includes renderType
           
           // Add messages to the DOM
           chatMessages.forEach(msg => {
-            const message = document.createElement('div');
-            message.className = `ai-chat-message ${msg.sender}`;
+            const messageElement = document.createElement('div');
+            messageElement.className = `ai-chat-message ${msg.sender}`;
             
-            if (msg.sender === 'ai' && msg.text.includes('[[') && msg.text.includes(']]')) {
-              // Handle action buttons in stored messages
+            // Use renderType from stored message, default to 'interactive' for AI if missing (for backward compatibility)
+            const currentRenderType = msg.renderType || (msg.sender === 'ai' ? 'interactive' : 'content');
+
+            if (msg.sender === 'ai' && currentRenderType === 'interactive' && msg.text.includes('[[') && msg.text.includes(']]')) {
               const processedText = msg.text.replace(/\[\[(.*?):(.*?)\]\]/g, (match, action, label) => {
                 return `<button class="ai-action-button" data-action="${action}">${label}</button>`;
               });
-              message.innerHTML = processedText;
+              messageElement.innerHTML = processedText;
               
-              // Add event listeners to action buttons
               setTimeout(() => {
-                message.querySelectorAll('.ai-action-button').forEach(button => {
+                messageElement.querySelectorAll('.ai-action-button').forEach(button => {
                   button.addEventListener('click', () => {
-                    const action = button.getAttribute('data-action');
-                    performAction(action);
+                    const actionName = button.getAttribute('data-action');
+                    const actionTarget = button.textContent;
+                    if (actionName === 'translate' || actionName === 'click' || actionName === 'highlight' || actionName === 'extract') {
+                        performAction(actionName, actionTarget);
+                    } else {
+                        performAction(actionName);
+                    }
                   });
                 });
               }, 0);
             } else {
-              message.textContent = msg.text;
+              messageElement.textContent = msg.text; // Display as plain text
             }
           
-            chatMessagesContainer.appendChild(message);
+            chatMessagesContainer.appendChild(messageElement);
           });
         
           // Scroll to bottom
@@ -398,40 +404,50 @@
   }
   
   // Add a message to the chat
-  function addMessage(text, sender) {
-    // const messagesContainer = document.querySelector('.ai-chat-messages');
-    // Ensure chatMessagesContainer is used
+  function addMessage(text, sender, renderType = 'interactive') {
     if (!chatMessagesContainer) return; // Don't add if container not ready
 
-    const message = document.createElement('div');
-    message.className = `ai-chat-message ${sender}`;
+    const messageElement = document.createElement('div');
+    messageElement.className = `ai-chat-message ${sender}`;
     
-    // If it's an AI message, check for action buttons
-    if (sender === 'ai' && text.includes('[[') && text.includes(']]')) {
+    const originalText = text; // Keep original text for storage
+
+    if (sender === 'ai' && renderType === 'interactive' && text.includes('[[') && text.includes(']]')) {
       // Replace [[action:label]] with action buttons
-      text = text.replace(/\[\[(.*?):(.*?)\]\]/g, (match, action, label) => {
+      const processedText = text.replace(/\[\[(.*?):(.*?)\]\]/g, (match, action, label) => {
         return `<button class="ai-action-button" data-action="${action}">${label}</button>`;
       });
-      message.innerHTML = text;
+      messageElement.innerHTML = processedText;
       
       // Add event listeners to the newly created action buttons
       setTimeout(() => {
-        message.querySelectorAll('.ai-action-button').forEach(button => {
+        messageElement.querySelectorAll('.ai-action-button').forEach(button => {
           button.addEventListener('click', () => {
-            const action = button.getAttribute('data-action');
-            performAction(action);
+            // Extract action and potentially target from the button if needed
+            // For now, quick actions from buttons might not have a specific target from the label itself
+            const actionName = button.getAttribute('data-action');
+            const actionTarget = button.textContent; // Or a more specific data attribute if needed
+            
+            // Decide if the label itself is the target or if it's just a label
+            // For simplicity, let's assume performAction can handle it or it's a general action
+            if (actionName === 'translate' || actionName === 'click' || actionName === 'highlight' || actionName === 'extract') {
+                performAction(actionName, actionTarget);
+            } else {
+                performAction(actionName); // For actions like summarize
+            }
           });
         });
       }, 0);
     } else {
-      message.textContent = text;
+      // For AI messages with renderType 'content', user messages, or AI messages without commands
+      messageElement.textContent = originalText;
     }
     
-    chatMessagesContainer.appendChild(message);
+    chatMessagesContainer.appendChild(messageElement);
     chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
     
     // Store message in memory and in chrome.storage
-    chatMessages.push({ text, sender });
+    chatMessages.push({ text: originalText, sender, renderType });
     saveChatMessages();
   }
   
@@ -1105,7 +1121,7 @@
       }
       
       // Add the summary
-      addMessage(`📝 Summary of "${title}":\n\n${summary}`, 'ai');
+      addMessage(`📝 Summary of "${title}":\n\n${summary}`, 'ai', 'content');
       
     } catch (error) {
       console.error('Error generating summary:', error);
@@ -1158,9 +1174,9 @@
         response += `\n...and ${extractedData.items.length - 15} more items.`;
       }
       
-      addMessage(response, 'ai');
+      addMessage(response, 'ai', 'content');
     } else {
-      addMessage(`I couldn't find any ${dataType} on this page.`, 'ai');
+      addMessage(`I couldn't find any ${dataType} on this page.`, 'ai', 'content');
     }
   }
   
