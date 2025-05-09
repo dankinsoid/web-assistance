@@ -54,8 +54,6 @@
     chatQuickActions.innerHTML = `
       <button class="ai-action-button" data-prompt="Translate this page">Translate Page</button>
       <button class="ai-action-button" data-prompt="Summarize this page">Summarize</button>
-      <button class="ai-action-button" data-prompt="Highlight main keywords on this page">Highlight Keywords</button>
-      <button class="ai-action-button" data-prompt="Help me click an element on this page">Click Element</button>
     `;
 
     chatInputContainer = document.createElement('div');
