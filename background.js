@@ -1,3 +1,5 @@
+console.log('[background.js] Script evaluating. Registering listeners...');
+
 // Listen for clicks on the extension icon
 chrome.action.onClicked.addListener((tab) => {
   console.log('[background.js] Extension icon clicked. Tab ID:', tab.id);
