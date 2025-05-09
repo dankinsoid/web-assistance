@@ -39,11 +39,5 @@
       },
       "description": "Toggle the AI Chat Panel"
     }
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [ "popup.html" ],
-      "matches": [ "<all_urls>" ]
-    }
-  ]
+  }
 }

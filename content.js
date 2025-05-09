@@ -15,8 +15,14 @@
   let initialPanelY = 0;
   let initialPanelWidth = 0;
   let initialPanelHeight = 0;
-  let settingsPopupIframe = null; // To keep track of the settings popup iframe
-  
+  // let settingsPopupIframe = null; // No longer needed
+  let isSettingsViewActive = false; // To track if settings view is shown
+  let chatPanelContentArea = null; // Div to hold chat or settings
+  let chatMessagesContainer = null;
+  let chatQuickActions = null;
+  let chatInputContainer = null;
+  let settingsViewDOM = null; // To store the settings DOM
+
   // Create and add the chat panel to the page
   function createChatPanel() {
     console.log('[content.js] createChatPanel called');
@@ -32,29 +38,43 @@
           <button class="ai-chat-close">✕</button>
         </div>
       </div>
-      <div class="ai-chat-messages"></div>
-      <div class="ai-chat-quick-actions">
-        <button class="ai-action-button" data-action="translate">Translate Page</button>
-        <button class="ai-action-button" data-action="summarize">Summarize</button>
-        <button class="ai-action-button" data-action="highlight">Highlight Keywords</button>
-        <button class="ai-action-button" data-action="click">Click Element</button>
-      </div>
-      <div class="ai-chat-input-container">
-        <textarea class="ai-chat-input" placeholder="Ask AI to help with this page..."></textarea>
-        <button class="ai-chat-send">➤</button>
-      </div>
+      <div class="ai-chat-panel-content-area"></div>
       <div class="resize-handle"></div>
     `;
     
     document.body.appendChild(panel);
+    chatPanelContentArea = panel.querySelector('.ai-chat-panel-content-area');
+
+    // Create chat view components
+    chatMessagesContainer = document.createElement('div');
+    chatMessagesContainer.className = 'ai-chat-messages';
+
+    chatQuickActions = document.createElement('div');
+    chatQuickActions.className = 'ai-chat-quick-actions';
+    chatQuickActions.innerHTML = `
+      <button class="ai-action-button" data-action="translate">Translate Page</button>
+      <button class="ai-action-button" data-action="summarize">Summarize</button>
+      <button class="ai-action-button" data-action="highlight">Highlight Keywords</button>
+      <button class="ai-action-button" data-action="click">Click Element</button>
+    `;
+
+    chatInputContainer = document.createElement('div');
+    chatInputContainer.className = 'ai-chat-input-container';
+    chatInputContainer.innerHTML = `
+      <textarea class="ai-chat-input" placeholder="Ask AI to help with this page..."></textarea>
+      <button class="ai-chat-send">➤</button>
+    `;
     
+    // Initially show chat view
+    showChatView();
+
     // Add event listeners to chat panel elements
     const header = panel.querySelector('.ai-chat-header');
     const settingsBtn = panel.querySelector('.ai-chat-settings');
     const closeBtn = panel.querySelector('.ai-chat-close');
-    const input = panel.querySelector('.ai-chat-input');
-    const sendBtn = panel.querySelector('.ai-chat-send');
-    const quickActionButtons = panel.querySelectorAll('.ai-action-button');
+    const input = chatInputContainer.querySelector('.ai-chat-input');
+    const sendBtn = chatInputContainer.querySelector('.ai-chat-send');
+    const quickActionButtons = chatQuickActions.querySelectorAll('.ai-action-button');
     const resizeHandle = panel.querySelector('.resize-handle');
     
     // Set up dragging functionality
@@ -62,12 +82,10 @@
     
     // Set up resizing functionality
     setupResizable(panel, resizeHandle);
-    
-    // Toggle collapse state - only when clicking collapse button, not the whole header
-    
+        
     settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation(); // Prevent header drag event
-      toggleSettingsPopup();
+      toggleSettingsView();
     });
     
     // Close the panel
@@ -115,30 +133,155 @@
     return panel;
   }
 
-  // Toggle the settings popup (iframe)
-  function toggleSettingsPopup() {
-    if (settingsPopupIframe && document.body.contains(settingsPopupIframe)) {
-      settingsPopupIframe.remove();
-      settingsPopupIframe = null;
-    } else {
-      settingsPopupIframe = document.createElement('iframe');
-      settingsPopupIframe.id = 'ai-settings-popup-iframe';
-      settingsPopupIframe.src = chrome.runtime.getURL('popup.html');
-      settingsPopupIframe.style.position = 'fixed';
-      settingsPopupIframe.style.top = '50%';
-      settingsPopupIframe.style.left = '50%';
-      settingsPopupIframe.style.transform = 'translate(-50%, -50%)';
-      settingsPopupIframe.style.width = '400px';
-      settingsPopupIframe.style.height = '550px';
-      settingsPopupIframe.style.border = '1px solid #ccc';
-      settingsPopupIframe.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-      settingsPopupIframe.style.zIndex = '2147483647'; // Max z-index
-      settingsPopupIframe.style.backgroundColor = 'white'; // Opaque background for the iframe content area
-      
-      document.body.appendChild(settingsPopupIframe);
-    }
+    return panel;
+  }
+
+  function showChatView() {
+    chatPanelContentArea.innerHTML = ''; // Clear previous content
+    chatPanelContentArea.appendChild(chatMessagesContainer);
+    chatPanelContentArea.appendChild(chatQuickActions);
+    chatPanelContentArea.appendChild(chatInputContainer);
+    isSettingsViewActive = false;
+  }
+
+  function createSettingsViewDOM() {
+    if (settingsViewDOM) return settingsViewDOM; // Return cached DOM if already created
+
+    settingsViewDOM = document.createElement('div');
+    settingsViewDOM.className = 'ai-settings-view';
+    // Mimic structure from popup.html
+    settingsViewDOM.innerHTML = `
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="settings-back-to-chat">← Back to Chat</button>
+      </div>
+      <div class="settings-content">
+        <div class="api-settings">
+          <h3>API Settings</h3>
+          <div class="form-group">
+            <label for="settings-api-provider">AI Provider:</label>
+            <select id="settings-api-provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="settings-api-key">API Key:</label>
+            <input type="password" id="settings-api-key" placeholder="Enter your API key">
+          </div>
+          <button id="settings-save-api">Save Settings</button>
+        </div>
+        <div class="actions">
+          <h3>Chat Actions</h3>
+          <button id="settings-clear-chat">Clear History</button>
+          <button id="settings-reset-all">Reset All</button>
+        </div>
+        <div class="settings-status-message"></div>
+      </div>
+    `;
+
+    // Add event listeners for settings elements
+    const backButton = settingsViewDOM.querySelector('.settings-back-to-chat');
+    const apiProviderSelect = settingsViewDOM.querySelector('#settings-api-provider');
+    const apiKeyInput = settingsViewDOM.querySelector('#settings-api-key');
+    const saveApiSettingsButton = settingsViewDOM.querySelector('#settings-save-api');
+    const clearChatButton = settingsViewDOM.querySelector('#settings-clear-chat');
+    const resetSettingsButton = settingsViewDOM.querySelector('#settings-reset-all');
+
+    backButton.addEventListener('click', () => toggleSettingsView());
+
+    saveApiSettingsButton.addEventListener('click', () => {
+      const apiProvider = apiProviderSelect.value;
+      const apiKey = apiKeyInput.value;
+      if (!apiKey) {
+        showStatusInSettingsPanel('Please enter an API key', true);
+        return;
+      }
+      chrome.storage.local.set({ apiProvider: apiProvider, apiKey: apiKey }, () => {
+        showStatusInSettingsPanel('Settings saved successfully!');
+      });
+    });
+
+    clearChatButton.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: "clearChat" }, (response) => {
+        if (response && response.success) {
+          showStatusInSettingsPanel('Chat history cleared!');
+        }
+      });
+    });
+
+    resetSettingsButton.addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset all settings?')) {
+        chrome.storage.local.clear(() => {
+          apiProviderSelect.value = 'openai'; // Default
+          apiKeyInput.value = '';
+          chrome.runtime.sendMessage({ action: "resetSettings" });
+          showStatusInSettingsPanel('All settings reset!');
+        });
+      }
+    });
+    
+    // Keyboard shortcuts within settings
+    settingsViewDOM.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            saveApiSettingsButton.click();
+        }
+        if (e.key === 'Escape') {
+            backButton.click();
+        }
+    });
+
+    return settingsViewDOM;
   }
   
+  function showStatusInSettingsPanel(message, isError = false) {
+    const statusElement = settingsViewDOM.querySelector('.settings-status-message');
+    if (!statusElement) return;
+
+    statusElement.textContent = message;
+    statusElement.style.color = isError ? 'var(--error-color, #f87171)' : 'var(--success-color, #34d399)';
+    statusElement.style.display = 'block';
+    
+    setTimeout(() => {
+      statusElement.style.display = 'none';
+      statusElement.textContent = '';
+    }, 5000);
+  }
+
+  function loadApiSettingsToUI() {
+    const apiProviderSelect = settingsViewDOM.querySelector('#settings-api-provider');
+    const apiKeyInput = settingsViewDOM.querySelector('#settings-api-key');
+    chrome.storage.local.get(['apiProvider', 'apiKey'], (result) => {
+      if (result.apiProvider) apiProviderSelect.value = result.apiProvider;
+      if (result.apiKey) apiKeyInput.value = result.apiKey;
+    });
+  }
+
+  function toggleSettingsView() {
+    if (isSettingsViewActive) {
+      showChatView();
+      // Reload messages for chat view if needed
+      const panel = document.querySelector('.ai-chat-panel');
+      if (panel && chatPanelVisible) { // Ensure panel is supposed to be visible
+          loadChatMessages().then(messagesLoaded => {
+            if (!messagesLoaded) {
+              addMessage("Hello! I'm your AI assistant. I can help you with this page. Try asking me to translate content, highlight information, click elements, or perform other tasks.", 'ai');
+              const pageTopic = inferPageTopic();
+              if (pageTopic) {
+                addMessage(`This page seems to be about ${pageTopic}. Would you like me to summarize it or highlight key points?`, 'ai');
+              }
+            }
+          });
+      }
+    } else {
+      chatPanelContentArea.innerHTML = ''; // Clear previous content
+      chatPanelContentArea.appendChild(createSettingsViewDOM());
+      loadApiSettingsToUI(); // Load current settings into the form
+      isSettingsViewActive = true;
+    }
+  }
+
   // Ensure the chat panel is visible
   function ensureChatPanelIsVisible() {
     console.log('[content.js] ensureChatPanelIsVisible called. chatPanelVisible:', chatPanelVisible);
@@ -203,10 +346,15 @@
   async function loadChatMessages() {
     return new Promise(resolve => {
       chrome.storage.local.get(['chatMessages', 'pageUrl'], result => {
-        const messagesContainer = document.querySelector('.ai-chat-messages');
+        // const messagesContainer = document.querySelector('.ai-chat-messages');
+        // Ensure chatMessagesContainer is used
+        if (!chatMessagesContainer) { // Should not happen if panel is visible
+            resolve(false);
+            return;
+        }
         
         // Clear existing messages in the DOM
-        messagesContainer.innerHTML = '';
+        chatMessagesContainer.innerHTML = '';
         
         // Check if we have messages for this URL
         if (result.chatMessages && result.chatMessages.length > 0 && result.pageUrl === window.location.href) {
@@ -236,12 +384,12 @@
             } else {
               message.textContent = msg.text;
             }
-            
-            messagesContainer.appendChild(message);
-          });
           
+            chatMessagesContainer.appendChild(message);
+          });
+        
           // Scroll to bottom
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
           resolve(true);
         } else {
           // No messages found for this URL or no messages at all
@@ -254,7 +402,10 @@
   
   // Add a message to the chat
   function addMessage(text, sender) {
-    const messagesContainer = document.querySelector('.ai-chat-messages');
+    // const messagesContainer = document.querySelector('.ai-chat-messages');
+    // Ensure chatMessagesContainer is used
+    if (!chatMessagesContainer) return; // Don't add if container not ready
+
     const message = document.createElement('div');
     message.className = `ai-chat-message ${sender}`;
     
@@ -279,8 +430,8 @@
       message.textContent = text;
     }
     
-    messagesContainer.appendChild(message);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    chatMessagesContainer.appendChild(message);
+    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
     
     // Store message in memory and in chrome.storage
     chatMessages.push({ text, sender });
@@ -330,10 +481,10 @@
       const response = await callAI(message, pageContext, apiSettings);
       
       // Replace the "thinking" message with the AI response
-      const thinkingMsg = document.querySelector('.ai-chat-message.ai:last-child');
+      const thinkingMsg = chatMessagesContainer.querySelector('.ai-chat-message.ai:last-child');
       if (thinkingMsg) {
-        messagesContainer = document.querySelector('.ai-chat-messages');
-        messagesContainer.removeChild(thinkingMsg);
+        // messagesContainer = document.querySelector('.ai-chat-messages');
+        chatMessagesContainer.removeChild(thinkingMsg);
       }
       
       // Add the actual response
@@ -894,10 +1045,10 @@
       }
       
       // Replace the "analyzing" message
-      const analyzeMsg = document.querySelector('.ai-chat-message.ai:last-child');
+      const analyzeMsg = chatMessagesContainer.querySelector('.ai-chat-message.ai:last-child');
       if (analyzeMsg) {
-        const messagesContainer = document.querySelector('.ai-chat-messages');
-        messagesContainer.removeChild(analyzeMsg);
+        // const messagesContainer = document.querySelector('.ai-chat-messages');
+        chatMessagesContainer.removeChild(analyzeMsg);
       }
       
       // Add the summary
@@ -1160,10 +1311,9 @@
       // Clear storage for this page
       chrome.storage.local.remove(['chatMessages', 'pageUrl']);
       
-      const panel = document.querySelector('.ai-chat-panel');
-      if (panel) {
-        const messagesContainer = panel.querySelector('.ai-chat-messages');
-        messagesContainer.innerHTML = '';
+      // const panel = document.querySelector('.ai-chat-panel');
+      if (chatMessagesContainer) { // Use the direct reference
+        chatMessagesContainer.innerHTML = '';
         addMessage("Settings have been reset. Let me know if you need anything else!", 'ai');
       }
       sendResponse({success: true});
@@ -1172,10 +1322,9 @@
       chatMessages = [];
       chrome.storage.local.remove(['chatMessages', 'pageUrl']);
       
-      const panel = document.querySelector('.ai-chat-panel');
-      if (panel) {
-        const messagesContainer = panel.querySelector('.ai-chat-messages');
-        messagesContainer.innerHTML = '';
+      // const panel = document.querySelector('.ai-chat-panel');
+      if (chatMessagesContainer) { // Use the direct reference
+        chatMessagesContainer.innerHTML = '';
         addMessage("Chat history has been cleared. How can I help you now?", 'ai');
       }
       sendResponse({success: true});
@@ -1184,18 +1333,7 @@
     return true; // Indicate we want to send a response asynchronously
   });
 
-  // Listen for messages from the settings popup iframe (e.g., to close itself)
-  window.addEventListener('message', (event) => {
-    // Check if the message is from our settings iframe and is a close request
-    if (settingsPopupIframe && event.source === settingsPopupIframe.contentWindow) {
-      if (event.data && event.data.action === 'closeSettingsPopupFromIframe') {
-        if (document.body.contains(settingsPopupIframe)) {
-          settingsPopupIframe.remove();
-          settingsPopupIframe = null;
-        }
-      }
-    }
-  });
+  // Removed iframe message listener as iframe is no longer used.
   
   // Load saved action history and chat messages
   chrome.storage.local.get(['userActionHistory', 'chatMessages', 'pageUrl'], (result) => {

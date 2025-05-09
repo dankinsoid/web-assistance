@@ -272,6 +272,137 @@
   }
 }
 
+/* Styles for In-Panel Settings View */
+.ai-chat-panel-content-area {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden; /* Important for switching content */
+}
+
+.ai-settings-view {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 100%;
+  overflow-y: auto;
+  background-color: var(--panel-bg); /* Match panel background */
+  color: var(--text-primary);
+}
+
+.ai-settings-view .settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 10px;
+}
+
+.ai-settings-view .settings-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.ai-settings-view .settings-back-to-chat {
+  background: transparent;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.ai-settings-view .settings-back-to-chat:hover {
+  background-color: var(--action-btn-bg);
+  color: var(--text-primary);
+}
+
+.ai-settings-view .settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ai-settings-view .api-settings h3,
+.ai-settings-view .actions h3 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 6px;
+}
+
+.ai-settings-view .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ai-settings-view .form-group label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.ai-settings-view .form-group select,
+.ai-settings-view .form-group input[type="password"] {
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.ai-settings-view .form-group select:focus,
+.ai-settings-view .form-group input[type="password"]:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.ai-settings-view button {
+  background-color: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: var(--transition);
+  align-self: flex-start; /* Align buttons to the start */
+}
+
+.ai-settings-view button:hover {
+  background-color: var(--accent-hover);
+}
+
+.ai-settings-view .actions button {
+  background-color: var(--action-btn-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--accent-primary);
+}
+.ai-settings-view .actions button:hover {
+  background-color: var(--accent-primary);
+  color: white;
+}
+
+
+.ai-settings-view .settings-status-message {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+  display: none; /* Hidden by default */
+  background-color: rgba(124, 92, 255, 0.1); /* Default to accent color bg */
+  border: 1px solid var(--accent-primary);
+}
+
 @media (max-width: 480px) {
   .ai-chat-panel {
     width: calc(100% - 20px);
