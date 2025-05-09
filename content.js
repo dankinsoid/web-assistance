@@ -523,7 +523,9 @@
       Consider the user's recent actions:
       ${JSON.stringify(userActionHistory.slice(-5))}
       
-      Respond conversationally but with actionable suggestions.
+      If you understand the request and can map it to one of the special commands, perform the action directly by including the command in your response.
+      If the request is ambiguous, or you need more information to use a command (e.g., a more specific selector), ask for clarification.
+      Otherwise, respond conversationally.
     `;
     
     // Different API calls based on provider
