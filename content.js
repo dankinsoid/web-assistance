@@ -515,7 +515,7 @@
       You can perform actions on the page using special commands:
       - To highlight text: Use [[highlight:text to find]]
       - To click a button or link: Use [[click:element description or text]]
-      - To translate content: Use [[translate:CSS_SELECTOR_for_elements_to_translate]] (e.g., [[translate:p]] or [[translate:#main-article p]])
+      - To translate content: Use [[translate:VALID_CSS_SELECTOR]] (e.g., [[translate:p]] or [[translate:#main-article p]]). Do not use descriptive phrases like "textContent" as a selector.
       - To extract data: Use [[extract:what to extract]]
       
       Include these commands in your response when you can help with the request.
@@ -839,12 +839,20 @@
 
     const targetLanguage = "English"; // Hardcoded for now. Future: make this configurable or infer from user query.
     let elementsToTranslate = [];
+    const commonNonSelectors = ["textcontent", "all text", "the content", "page content", "entire page", "text content"];
 
-    if (!selectorOrDescription || selectorOrDescription.toLowerCase() === "page" || selectorOrDescription.toLowerCase() === "this page") {
-      // Default elements if "page" or no specific selector is given
+    if (!selectorOrDescription || 
+        selectorOrDescription.toLowerCase() === "page" || 
+        selectorOrDescription.toLowerCase() === "this page" ||
+        commonNonSelectors.includes(selectorOrDescription.toLowerCase().trim())) {
+      // Default elements if "page", no specific selector, or a common non-selector phrase is given
       elementsToTranslate = Array.from(document.querySelectorAll('h1, h2, h3, h4, p, li, span, div, article, section, main'))
-                                  .filter(el => el.offsetParent !== null && el.textContent.trim().length > 10 && !el.closest('.ai-chat-panel')); // Filter visible, meaningful, non-chat-panel elements
-    } else {
+                                  .filter(el => el.offsetParent !== null && el.textContent.trim().length > 10 && !el.closest('.ai-chat-panel')); 
+      if (elementsToTranslate.length === 0 && commonNonSelectors.includes(selectorOrDescription?.toLowerCase().trim())) {
+         addMessage(`Interpreted "${selectorOrDescription}" as a request to translate the page, but found no meaningful content.`, 'ai');
+         return;
+      }
+    } else { // Attempt to use selectorOrDescription as a CSS selector
       try {
         elementsToTranslate = Array.from(document.querySelectorAll(selectorOrDescription))
                                     .filter(el => el.offsetParent !== null && !el.closest('.ai-chat-panel'));
