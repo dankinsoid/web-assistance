@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const apiProviderSelect = document.getElementById('api-provider');
   const apiKeyInput = document.getElementById('api-key');
   const saveApiSettingsButton = document.getElementById('save-api-settings');
-  const toggleChatPanelButton = document.getElementById('toggle-chat-panel');
   const clearChatButton = document.getElementById('clear-chat');
   const resetSettingsButton = document.getElementById('reset-settings');
 
@@ -59,14 +58,6 @@ document.addEventListener('DOMContentLoaded', function() {
       apiKey: apiKey
     }, function() {
       showStatus('Settings saved successfully!');
-    });
-  });
-
-  // Toggle chat panel
-  toggleChatPanelButton.addEventListener('click', function() {
-    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-      chrome.tabs.sendMessage(tabs[0].id, {action: "toggleChatPanel"});
-      window.close(); // Close popup after toggling
     });
   });
   
