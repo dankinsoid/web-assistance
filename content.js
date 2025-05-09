@@ -527,15 +527,25 @@
     `;
     
     // Different API calls based on provider
-    switch (apiProvider) {
-      case 'openai':
-        return callOpenAI(prompt, apiKey);
-      case 'anthropic':
-        return callAnthropic(prompt, apiKey);
-      case 'gemini':
-        return callGemini(prompt, apiKey);
-      default:
-        return "Please select a valid AI provider in the extension settings.";
+    const systemMessage = 'You are an AI assistant that helps users interact with web pages.';
+    const max_tokens = 500;
+
+    try {
+      switch (apiProvider) {
+        case 'openai':
+          return await _callOpenAI_API(apiKey, 'gpt-3.5-turbo', [{ role: 'system', content: systemMessage }, { role: 'user', content: prompt }], max_tokens);
+        case 'anthropic':
+          return await _callAnthropic_API(apiKey, 'claude-3-haiku-20240307', systemMessage, [{ role: 'user', content: prompt }], max_tokens);
+        case 'gemini':
+          // Gemini combines system and user prompt for basic models
+          const geminiPrompt = `${systemMessage}\n\n${prompt}`;
+          return await _callGemini_API(apiKey, 'gemini-pro', geminiPrompt, max_tokens);
+        default:
+          return "Please select a valid AI provider in the extension settings.";
+      }
+    } catch (error) {
+      console.error(`Error calling AI provider ${apiProvider}:`, error);
+      return `Sorry, there was an error contacting the AI (${apiProvider}). Please check your API key and network connection.`;
     }
   }
 
