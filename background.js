@@ -38,8 +38,22 @@ chrome.commands.onCommand.addListener((command) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "openSettingsPopup") {
     console.log('[background.js] Received openSettingsPopup request');
-    chrome.action.openPopup();
-    sendResponse({success: true});
+    chrome.windows.create({
+      url: chrome.runtime.getURL("popup.html"),
+      type: "popup",
+      width: 400,
+      height: 550 // Adjusted height slightly for typical popup content
+    }, (window) => {
+      if (chrome.runtime.lastError) {
+        console.error('[background.js] Error opening settings window:', chrome.runtime.lastError.message);
+        sendResponse({success: false, error: chrome.runtime.lastError.message});
+      } else {
+        console.log('[background.js] Settings popup window created:', window.id);
+        sendResponse({success: true});
+      }
+    });
+    return true; // Indicate asynchronous response
   }
-  return true; // Keep the message channel open for asynchronous response
+  // Handle other messages if any
+  return true; // Keep the message channel open for other asynchronous responses
 });
