@@ -515,7 +515,7 @@
       You can perform actions on the page using special commands:
       - To highlight text: Use [[highlight:text to find]]
       - To click a button or link: Use [[click:element description or text]]
-      - To translate content: Use [[translate:selector or description]]
+      - To translate content: Use [[translate:CSS_SELECTOR_for_elements_to_translate]] (e.g., [[translate:p]] or [[translate:#main-article p]])
       - To extract data: Use [[extract:what to extract]]
       
       Include these commands in your response when you can help with the request.
@@ -538,31 +538,35 @@
         return "Please select a valid AI provider in the extension settings.";
     }
   }
-  
-  // Call OpenAI API
-  async function callOpenAI(prompt, apiKey) {
+
+  // --- Low-level API Callers ---
+  async function _callOpenAI_API(apiKey, model, messages, max_tokens) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: 'You are an AI assistant that helps users interact with web pages.' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 500
-      })
+      body: JSON.stringify({ model, messages, max_tokens })
     });
-    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("OpenAI API Error:", errorData);
+      throw new Error(`OpenAI API error: ${response.status} ${errorData.error?.message || ''}`);
+    }
     const data = await response.json();
-    return data.choices[0]?.message?.content || "Sorry, I couldn't generate a response.";
+    return data.choices[0]?.message?.content || "";
   }
-  
-  // Call Anthropic API
-  async function callAnthropic(prompt, apiKey) {
+
+  async function _callAnthropic_API(apiKey, model, systemMessage, userMessages, max_tokens) {
+    const body = {
+      model,
+      max_tokens,
+      messages: userMessages
+    };
+    if (systemMessage) {
+      body.system = systemMessage;
+    }
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -570,44 +574,36 @@
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 500,
-        messages: [
-          { role: 'user', content: prompt }
-        ]
-      })
+      body: JSON.stringify(body)
     });
-    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Anthropic API Error:", errorData);
+      throw new Error(`Anthropic API error: ${response.status} ${errorData.error?.message || ''}`);
+    }
     const data = await response.json();
-    return data.content[0]?.text || "Sorry, I couldn't generate a response.";
+    return data.content[0]?.text || "";
   }
-  
-  // Call Gemini API
-  async function callGemini(prompt, apiKey) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+
+  async function _callGemini_API(apiKey, model, promptText, max_tokens) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt }
-            ]
-          }
-        ],
-        generationConfig: {
-          maxOutputTokens: 500
-        }
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: { maxOutputTokens: max_tokens }
       })
     });
-    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Gemini API Error:", errorData);
+      throw new Error(`Gemini API error: ${response.status} ${errorData.error?.message || ''}`);
+    }
     const data = await response.json();
-    return data.candidates[0]?.content?.parts[0]?.text || "Sorry, I couldn't generate a response.";
+    return data.candidates[0]?.content?.parts[0]?.text || "";
   }
-  
+  // --- End Low-level API Callers ---
+
   // Get relevant context from the current page
   function getPageContext() {
     // Get the page title
@@ -669,6 +665,36 @@
     };
     
     return JSON.stringify(context, null, 2);
+  }
+
+  async function fetchTranslation(textToTranslate, targetLanguage, apiSettings) {
+    if (!textToTranslate || !textToTranslate.trim()) {
+      return ""; // Nothing to translate
+    }
+    const { apiProvider, apiKey } = apiSettings;
+    const systemPrompt = "You are a precise translation engine. Output ONLY the translated text.";
+    const userPrompt = `Translate the following text to ${targetLanguage}. Output ONLY the translated text, without any additional explanations or conversation.\n\nText to translate:\n"${textToTranslate}"`;
+    // Estimate tokens for translation, roughly 1.5x characters for some languages, plus prompt.
+    const max_tokens = Math.max(100, Math.floor(textToTranslate.length * 1.5) + 50);
+
+    try {
+      switch (apiProvider) {
+        case 'openai':
+          return await _callOpenAI_API(apiKey, 'gpt-3.5-turbo', [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], max_tokens);
+        case 'anthropic':
+          return await _callAnthropic_API(apiKey, 'claude-3-haiku-20240307', systemPrompt, [{ role: 'user', content: userPrompt }], max_tokens);
+        case 'gemini':
+          const geminiFullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+          return await _callGemini_API(apiKey, 'gemini-pro', geminiFullPrompt, max_tokens);
+        default:
+          console.warn(`Translation not supported for provider: ${apiProvider}`);
+          return `${textToTranslate} (Translation for ${apiProvider} not implemented, target: ${targetLanguage})`;
+      }
+    } catch (error) {
+      console.error(`Error fetching translation from ${apiProvider}:`, error);
+      addMessage(`Error translating text using ${apiProvider}. Check console for details.`, 'ai');
+      return textToTranslate; // Fallback to original text
+    }
   }
   
   // Extract text while preserving some structure
@@ -787,60 +813,70 @@
   }
   
   // Translate content function
-  function translateContent(selector) {
-    // If no selector provided, translate visible text
-    const elements = selector ? document.querySelectorAll(selector) : 
-                                document.querySelectorAll('h1, h2, h3, p, li, .content');
-    
-    // Mark elements for translation
-    elements.forEach(el => {
-      if (el && el.textContent.trim()) {
-        el.dataset.originalText = el.textContent;
-        el.classList.add('ai-to-translate');
-      }
+  async function translateContent(selectorOrDescription) {
+    addMessage("Preparing to translate content...", 'ai');
+
+    const apiSettings = await new Promise(resolve => {
+      chrome.storage.local.get(['apiProvider', 'apiKey'], resolve);
     });
-    
-    // In a real implementation, we would call the AI API here with the text to translate
-    // For this example, we'll just simulate translation
-    chrome.storage.local.get(['apiProvider', 'apiKey'], async (apiSettings) => {
-      if (!apiSettings.apiKey) {
-        addMessage("Please set up your API key in the extension settings to use translation.", 'ai');
+
+    if (!apiSettings.apiKey) {
+      addMessage("Please set up your API key in the extension settings to use translation.", 'ai');
+      return;
+    }
+
+    const targetLanguage = "English"; // Hardcoded for now. Future: make this configurable or infer from user query.
+    let elementsToTranslate = [];
+
+    if (!selectorOrDescription || selectorOrDescription.toLowerCase() === "page" || selectorOrDescription.toLowerCase() === "this page") {
+      // Default elements if "page" or no specific selector is given
+      elementsToTranslate = Array.from(document.querySelectorAll('h1, h2, h3, h4, p, li, span, div, article, section, main'))
+                                  .filter(el => el.offsetParent !== null && el.textContent.trim().length > 10 && !el.closest('.ai-chat-panel')); // Filter visible, meaningful, non-chat-panel elements
+    } else {
+      try {
+        elementsToTranslate = Array.from(document.querySelectorAll(selectorOrDescription))
+                                    .filter(el => el.offsetParent !== null && !el.closest('.ai-chat-panel'));
+        if (elementsToTranslate.length === 0) {
+          addMessage(`No elements found for selector "${selectorOrDescription}". Please try a different selector or ask to translate "this page".`, 'ai');
+          return;
+        }
+      } catch (e) {
+        addMessage(`"${selectorOrDescription}" is not a valid CSS selector. Ask to translate "this page" or provide a valid selector.`, 'ai');
+        console.error("Invalid selector for translation:", e);
         return;
       }
-      
-      // Gather text to translate
-      const textsToTranslate = [];
-      document.querySelectorAll('.ai-to-translate').forEach(el => {
-        textsToTranslate.push({
-          element: el,
-          text: el.dataset.originalText
-        });
-      });
-      
-      // Add message about translation
-      addMessage("Translating content...", 'ai');
-      
-      // Process in batches to avoid token limits
-      const batchSize = 5;
-      for (let i = 0; i < textsToTranslate.length; i += batchSize) {
-        const batch = textsToTranslate.slice(i, i + batchSize);
-        
-        // In reality, this would call the AI API
-        // Here we'll just simulate translation by adding "(Translated)" to each text
-        batch.forEach(item => {
-          // Simulate translation - in a real extension, we would call the AI API here
-          const translatedText = `${item.text} (Translated)`;
-          item.element.textContent = translatedText;
-          item.element.classList.remove('ai-to-translate');
-          item.element.classList.add('ai-translated');
-        });
-        
-        // Allow UI to update
-        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    if (elementsToTranslate.length === 0) {
+        addMessage("No content found to translate with the given criteria.", 'ai');
+        return;
+    }
+
+    addMessage(`Translating ${elementsToTranslate.length} element(s) to ${targetLanguage}... This may take a moment.`, 'ai');
+    let translatedCount = 0;
+
+    for (const el of elementsToTranslate) {
+      const originalText = el.textContent.trim();
+      if (originalText) {
+        // Avoid re-translating if already marked (e.g. for nested elements)
+        if (el.dataset.aiTranslated === targetLanguage) continue;
+
+        const translatedText = await fetchTranslation(originalText, targetLanguage, apiSettings);
+        if (translatedText && translatedText !== originalText) {
+          el.textContent = translatedText;
+          el.dataset.aiTranslated = targetLanguage; // Mark as translated to this language
+          translatedCount++;
+        }
+        // Small delay to be kind to APIs and allow UI to update if many elements
+        await new Promise(resolve => setTimeout(resolve, 100)); 
       }
-      
-      addMessage("Translation complete! I've translated the main content of the page.", 'ai');
-    });
+    }
+
+    if (translatedCount > 0) {
+      addMessage(`Translation complete! ${translatedCount} element(s) translated to ${targetLanguage}.`, 'ai');
+    } else {
+      addMessage("No text was translated. Content might already be in the target language or could not be translated.", 'ai');
+    }
   }
   
   // Highlight text on the page
