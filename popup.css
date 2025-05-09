@@ -1,63 +1,166 @@
+/* Dark Mode Professional Design for Popup */
+:root {
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #2a2a3c;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --accent-primary: #7c5cff;
+  --accent-secondary: #5546b3;
+  --success: #4ade80;
+  --error: #f87171;
+  --border-radius: 8px;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --transition: all 0.2s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
 body {
-  width: 300px;
-  padding: 10px;
-  font-family: Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  width: 360px;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .container {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+  padding: 20px;
 }
 
 h1 {
-  font-size: 18px;
-  margin: 0 0 10px 0;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 5px;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  text-align: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 h2 {
-  font-size: 14px;
-  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.api-settings {
+  background-color: var(--bg-secondary);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
 }
 
 .form-group {
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 label {
   display: block;
-  margin-bottom: 5px;
-  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 input, select {
   width: 100%;
-  padding: 6px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+  background-color: rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: var(--transition);
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.2);
 }
 
 button {
-  padding: 8px 12px;
-  background: #4285f4;
+  background-color: var(--accent-primary);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--border-radius);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 12px;
-  width: 100%;
-  margin-top: 5px;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button:hover {
-  background: #3367d6;
+  background-color: var(--accent-secondary);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+#save-api-settings {
+  width: 100%;
+  margin-top: 8px;
 }
 
 .actions {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.actions button {
+  width: 100%;
+}
+
+#toggle-chat-panel {
+  background-color: var(--accent-primary);
+  grid-column: span 2;
+}
+
+#reset-settings {
+  background-color: rgba(248, 113, 113, 0.8);
+}
+
+#reset-settings:hover {
+  background-color: var(--error);
+}
+
+#clear-chat {
+  background-color: rgba(100, 116, 139, 0.8);
+}
+
+#clear-chat:hover {
+  background-color: rgba(100, 116, 139, 1);
+}
+
+.status-message {
+  margin-top: 16px;
+  padding: 10px;
+  border-radius: var(--border-radius);
+  text-align: center;
+  background-color: rgba(74, 222, 128, 0.1);
+  color: var(--success);
+  font-weight: 500;
+  animation: fadeOut 3s forwards;
+  animation-delay: 2s;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
