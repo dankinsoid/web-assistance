@@ -133,9 +133,6 @@
     return panel;
   }
 
-    return panel;
-  }
-
   function showChatView() {
     chatPanelContentArea.innerHTML = ''; // Clear previous content
     chatPanelContentArea.appendChild(chatMessagesContainer);
