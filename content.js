@@ -1,0 +1,1048 @@
+
+// content.js - Script that runs in the context of web pages
+(function() {
+  // State variables
+  let chatPanelVisible = false;
+  let userActionHistory = [];
+  let isPanelCollapsed = false;
+  
+  // Create and add the chat panel to the page
+  function createChatPanel() {
+    const panel = document.createElement('div');
+    panel.className = 'ai-chat-panel';
+    panel.style.display = 'none'; // Initially hidden
+    
+    panel.innerHTML = `
+      <div class="ai-chat-header">
+        <h3>AI Page Assistant</h3>
+        <div class="ai-chat-controls">
+          <button class="ai-chat-collapse">▼</button>
+          <button class="ai-chat-close">✕</button>
+        </div>
+      </div>
+      <div class="ai-chat-messages"></div>
+      <div class="ai-chat-quick-actions">
+        <button class="ai-action-button" data-action="translate">Translate Page</button>
+        <button class="ai-action-button" data-action="summarize">Summarize</button>
+        <button class="ai-action-button" data-action="highlight">Highlight Keywords</button>
+        <button class="ai-action-button" data-action="click">Click Element</button>
+      </div>
+      <div class="ai-chat-input-container">
+        <textarea class="ai-chat-input" placeholder="Ask AI to help with this page..."></textarea>
+        <button class="ai-chat-send">➤</button>
+      </div>
+    `;
+    
+    document.body.appendChild(panel);
+    
+    // Add event listeners to chat panel elements
+    const header = panel.querySelector('.ai-chat-header');
+    const collapseBtn = panel.querySelector('.ai-chat-collapse');
+    const closeBtn = panel.querySelector('.ai-chat-close');
+    const input = panel.querySelector('.ai-chat-input');
+    const sendBtn = panel.querySelector('.ai-chat-send');
+    const quickActionButtons = panel.querySelectorAll('.ai-action-button');
+    
+    // Toggle collapse state
+    header.addEventListener('click', (e) => {
+      if (e.target === header || e.target.tagName === 'H3') {
+        toggleCollapsePanel();
+      }
+    });
+    
+    collapseBtn.addEventListener('click', toggleCollapsePanel);
+    
+    // Close the panel
+    closeBtn.addEventListener('click', () => {
+      panel.style.display = 'none';
+      chatPanelVisible = false;
+    });
+    
+    // Send message on button click
+    sendBtn.addEventListener('click', () => {
+      const message = input.value.trim();
+      if (message) {
+        sendMessage(message);
+        input.value = '';
+      }
+    });
+    
+    // Send message on Enter (but allow Shift+Enter for new lines)
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const message = input.value.trim();
+        if (message) {
+          sendMessage(message);
+          input.value = '';
+        }
+      }
+    });
+    
+    // Auto-resize textarea as user types
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = (input.scrollHeight < 100) ? `${input.scrollHeight}px` : '100px';
+    });
+    
+    // Quick action buttons
+    quickActionButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.getAttribute('data-action');
+        performAction(action);
+      });
+    });
+    
+    return panel;
+  }
+  
+  // Toggle the collapsed state of the panel
+  function toggleCollapsePanel() {
+    const panel = document.querySelector('.ai-chat-panel');
+    const collapseBtn = panel.querySelector('.ai-chat-collapse');
+    
+    isPanelCollapsed = !isPanelCollapsed;
+    
+    if (isPanelCollapsed) {
+      panel.classList.add('collapsed');
+      collapseBtn.textContent = '▲';
+    } else {
+      panel.classList.remove('collapsed');
+      collapseBtn.textContent = '▼';
+    }
+  }
+  
+  // Toggle the visibility of the chat panel
+  function toggleChatPanel() {
+    const panel = document.querySelector('.ai-chat-panel') || createChatPanel();
+    
+    if (chatPanelVisible) {
+      panel.style.display = 'none';
+    } else {
+      panel.style.display = 'flex';
+      // Add a welcome message if it's the first time opening
+      if (panel.querySelector('.ai-chat-messages').children.length === 0) {
+        addMessage("Hello! I'm your AI assistant. I can help you with this page. Try asking me to translate content, highlight information, click elements, or perform other tasks.", 'ai');
+        
+        // Add quick suggestions based on the page content
+        const pageTopic = inferPageTopic();
+        if (pageTopic) {
+          addMessage(`This page seems to be about ${pageTopic}. Would you like me to summarize it or highlight key points?`, 'ai');
+        }
+      }
+    }
+    
+    chatPanelVisible = !chatPanelVisible;
+  }
+  
+  // Add a message to the chat
+  function addMessage(text, sender) {
+    const messagesContainer = document.querySelector('.ai-chat-messages');
+    const message = document.createElement('div');
+    message.className = `ai-chat-message ${sender}`;
+    
+    // If it's an AI message, check for action buttons
+    if (sender === 'ai' && text.includes('[[') && text.includes(']]')) {
+      // Replace [[action:label]] with action buttons
+      text = text.replace(/\[\[(.*?):(.*?)\]\]/g, (match, action, label) => {
+        return `<button class="ai-action-button" data-action="${action}">${label}</button>`;
+      });
+      message.innerHTML = text;
+      
+      // Add event listeners to the newly created action buttons
+      setTimeout(() => {
+        message.querySelectorAll('.ai-action-button').forEach(button => {
+          button.addEventListener('click', () => {
+            const action = button.getAttribute('data-action');
+            performAction(action);
+          });
+        });
+      }, 0);
+    } else {
+      message.textContent = text;
+    }
+    
+    messagesContainer.appendChild(message);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+  
+  // Send a message to the AI and display the response
+  async function sendMessage(message) {
+    // Add user message to chat
+    addMessage(message, 'user');
+    
+    // Save user action to history
+    userActionHistory.push({
+      type: 'message',
+      content: message,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Add temporary "thinking" message
+    addMessage("Thinking...", 'ai');
+    
+    try {
+      // Get API settings
+      const apiSettings = await new Promise(resolve => {
+        chrome.storage.local.get(['apiProvider', 'apiKey'], resolve);
+      });
+      
+      if (!apiSettings.apiKey) {
+        // Replace the "thinking" message with an error
+        const thinkingMsg = document.querySelector('.ai-chat-message.ai:last-child');
+        thinkingMsg.textContent = "Please set up your API key in the extension popup.";
+        return;
+      }
+      
+      // Get the page context
+      const pageContext = getPageContext();
+      
+      // Send to appropriate AI API
+      const response = await callAI(message, pageContext, apiSettings);
+      
+      // Replace the "thinking" message with the AI response
+      const thinkingMsg = document.querySelector('.ai-chat-message.ai:last-child');
+      if (thinkingMsg) {
+        messagesContainer = document.querySelector('.ai-chat-messages');
+        messagesContainer.removeChild(thinkingMsg);
+      }
+      
+      // Add the actual response
+      addMessage(response, 'ai');
+      
+      // Check if response contains instructions to modify the page
+      processAIResponse(response);
+      
+    } catch (error) {
+      console.error('Error sending message to AI:', error);
+      // Replace the "thinking" message with an error
+      const thinkingMsg = document.querySelector('.ai-chat-message.ai:last-child');
+      thinkingMsg.textContent = "Sorry, I encountered an error. Please try again.";
+    }
+  }
+  
+  // Call the appropriate AI API based on settings
+  async function callAI(message, pageContext, apiSettings) {
+    const { apiProvider, apiKey } = apiSettings;
+    
+    // Construct the prompt with page context
+    const prompt = `
+      You are an AI assistant embedded in a web page as a Chrome extension.
+      Current page: ${document.title} - ${window.location.href}
+      
+      USER REQUEST: ${message}
+      
+      PAGE CONTEXT:
+      ${pageContext}
+      
+      You can perform actions on the page using special commands:
+      - To highlight text: Use [[highlight:text to find]]
+      - To click a button or link: Use [[click:element description or text]]
+      - To translate content: Use [[translate:selector or description]]
+      - To extract data: Use [[extract:what to extract]]
+      
+      Include these commands in your response when you can help with the request.
+      
+      Consider the user's recent actions:
+      ${JSON.stringify(userActionHistory.slice(-5))}
+      
+      Respond conversationally but with actionable suggestions.
+    `;
+    
+    // Different API calls based on provider
+    switch (apiProvider) {
+      case 'openai':
+        return callOpenAI(prompt, apiKey);
+      case 'anthropic':
+        return callAnthropic(prompt, apiKey);
+      case 'gemini':
+        return callGemini(prompt, apiKey);
+      default:
+        return "Please select a valid AI provider in the extension settings.";
+    }
+  }
+  
+  // Call OpenAI API
+  async function callOpenAI(prompt, apiKey) {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are an AI assistant that helps users interact with web pages.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 500
+      })
+    });
+    
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "Sorry, I couldn't generate a response.";
+  }
+  
+  // Call Anthropic API
+  async function callAnthropic(prompt, apiKey) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 500,
+        messages: [
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+    
+    const data = await response.json();
+    return data.content[0]?.text || "Sorry, I couldn't generate a response.";
+  }
+  
+  // Call Gemini API
+  async function callGemini(prompt, apiKey) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: prompt }
+            ]
+          }
+        ],
+        generationConfig: {
+          maxOutputTokens: 500
+        }
+      })
+    });
+    
+    const data = await response.json();
+    return data.candidates[0]?.content?.parts[0]?.text || "Sorry, I couldn't generate a response.";
+  }
+  
+  // Get relevant context from the current page
+  function getPageContext() {
+    // Get the page title
+    const title = document.title;
+    
+    // Get main content (try to exclude navigation, footer, etc.)
+    const mainContent = document.querySelector('main') || 
+                        document.querySelector('article') || 
+                        document.querySelector('.content') || 
+                        document.body;
+    
+    // Get text content with some structure preservation
+    const textContent = extractStructuredText(mainContent);
+    
+    // Get meta description
+    const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    
+    // Get current URL
+    const url = window.location.href;
+    
+    // Get all forms on the page
+    const forms = Array.from(document.forms).map(form => {
+      return {
+        id: form.id,
+        name: form.name,
+        action: form.action,
+        method: form.method,
+        fields: Array.from(form.elements).filter(el => el.tagName !== 'FIELDSET').map(field => {
+          return {
+            type: field.type,
+            name: field.name,
+            id: field.id,
+            placeholder: field.placeholder
+          };
+        })
+      };
+    });
+    
+    // Get all buttons and links
+    const interactiveElements = [...document.querySelectorAll('button, a, [role="button"]')].map(el => {
+      return {
+        type: el.tagName.toLowerCase(),
+        text: el.textContent.trim(),
+        id: el.id,
+        class: el.className,
+        href: el.href || null,
+        visible: isElementVisible(el)
+      };
+    }).filter(el => el.text && el.visible);
+    
+    // Combine all context
+    const context = {
+      title,
+      url,
+      metaDescription,
+      textContent: textContent.substring(0, 3000) + (textContent.length > 3000 ? '...' : ''),
+      forms: forms.slice(0, 5), // Limit to 5 forms
+      interactiveElements: interactiveElements.slice(0, 20) // Limit to 20 elements
+    };
+    
+    return JSON.stringify(context, null, 2);
+  }
+  
+  // Extract text while preserving some structure
+  function extractStructuredText(element) {
+    const headings = element.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const paragraphs = element.querySelectorAll('p');
+    
+    let result = '';
+    
+    // Add headings with their levels
+    headings.forEach(heading => {
+      const level = heading.tagName.charAt(1);
+      const text = heading.textContent.trim();
+      if (text) {
+        result += `[Heading ${level}] ${text}\n`;
+      }
+    });
+    
+    // Add paragraphs
+    paragraphs.forEach(p => {
+      const text = p.textContent.trim();
+      if (text) {
+        result += `${text}\n\n`;
+      }
+    });
+    
+    // If we didn't get much content, fall back to all text
+    if (result.length < 200) {
+      result = element.textContent.trim()
+        .replace(/\s+/g, ' ')
+        .split('. ')
+        .join('.\n');
+    }
+    
+    return result;
+  }
+  
+  // Check if an element is visible on the page
+  function isElementVisible(el) {
+    if (!el) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && 
+           style.visibility !== 'hidden' && 
+           style.opacity !== '0' &&
+           el.offsetWidth > 0 && 
+           el.offsetHeight > 0;
+  }
+  
+  // Process AI response for special commands and perform actions
+  function processAIResponse(response) {
+    // Extract action commands like [[action:target]]
+    const actionRegex = /\[\[(.*?):(.*?)\]\]/g;
+    let match;
+    
+    // Keep track of all actions to log
+    const actions = [];
+    
+    while ((match = actionRegex.exec(response)) !== null) {
+      const action = match[1];
+      const target = match[2];
+      
+      // Perform the action
+      try {
+        performAction(action, target);
+        actions.push({ action, target });
+      } catch (error) {
+        console.error(`Error performing action ${action}:`, error);
+      }
+    }
+    
+    // Log performed actions
+    if (actions.length > 0) {
+      userActionHistory.push({
+        type: 'ai_actions',
+        actions: actions,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Save to storage
+      chrome.storage.local.set({ userActionHistory: userActionHistory });
+    }
+  }
+  
+  // Perform various actions on the page
+  function performAction(action, target) {
+    switch (action) {
+      case 'translate':
+        translateContent(target);
+        break;
+      case 'highlight':
+        highlightText(target);
+        break;
+      case 'click':
+        clickElement(target);
+        break;
+      case 'summarize':
+        summarizePage();
+        break;
+      case 'extract':
+        extractData(target);
+        break;
+      default:
+        console.log(`Unknown action: ${action}`);
+    }
+    
+    // Log user action
+    userActionHistory.push({
+      type: 'action',
+      action: action,
+      target: target,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Save to storage
+    chrome.storage.local.set({ userActionHistory: userActionHistory });
+  }
+  
+  // Translate content function
+  function translateContent(selector) {
+    // If no selector provided, translate visible text
+    const elements = selector ? document.querySelectorAll(selector) : 
+                                document.querySelectorAll('h1, h2, h3, p, li, .content');
+    
+    // Mark elements for translation
+    elements.forEach(el => {
+      if (el && el.textContent.trim()) {
+        el.dataset.originalText = el.textContent;
+        el.classList.add('ai-to-translate');
+      }
+    });
+    
+    // In a real implementation, we would call the AI API here with the text to translate
+    // For this example, we'll just simulate translation
+    chrome.storage.local.get(['apiProvider', 'apiKey'], async (apiSettings) => {
+      if (!apiSettings.apiKey) {
+        addMessage("Please set up your API key in the extension settings to use translation.", 'ai');
+        return;
+      }
+      
+      // Gather text to translate
+      const textsToTranslate = [];
+      document.querySelectorAll('.ai-to-translate').forEach(el => {
+        textsToTranslate.push({
+          element: el,
+          text: el.dataset.originalText
+        });
+      });
+      
+      // Add message about translation
+      addMessage("Translating content...", 'ai');
+      
+      // Process in batches to avoid token limits
+      const batchSize = 5;
+      for (let i = 0; i < textsToTranslate.length; i += batchSize) {
+        const batch = textsToTranslate.slice(i, i + batchSize);
+        
+        // In reality, this would call the AI API
+        // Here we'll just simulate translation by adding "(Translated)" to each text
+        batch.forEach(item => {
+          // Simulate translation - in a real extension, we would call the AI API here
+          const translatedText = `${item.text} (Translated)`;
+          item.element.textContent = translatedText;
+          item.element.classList.remove('ai-to-translate');
+          item.element.classList.add('ai-translated');
+        });
+        
+        // Allow UI to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      addMessage("Translation complete! I've translated the main content of the page.", 'ai');
+    });
+  }
+  
+  // Highlight text on the page
+  function highlightText(textToFind) {
+    if (!textToFind) {
+      // If no specific text provided, ask user what to highlight
+      addMessage("What text would you like me to highlight on the page?", 'ai');
+      return;
+    }
+    
+    // Get all text nodes in the document
+    const textNodes = [];
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      { acceptNode: node => node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT }
+    );
+    
+    while (walker.nextNode()) {
+      textNodes.push(walker.currentNode);
+    }
+    
+    // Counter for highlighted instances
+    let highlightCount = 0;
+    
+    // Function to highlight text in a node
+    function highlightInNode(node, text) {
+      const content = node.nodeValue;
+      const indexOfText = content.toLowerCase().indexOf(text.toLowerCase());
+      
+      if (indexOfText >= 0) {
+        // Split the node into three parts: before match, match, and after match
+        const before = content.substring(0, indexOfText);
+        const match = content.substring(indexOfText, indexOfText + text.length);
+        const after = content.substring(indexOfText + text.length);
+        
+        const span = document.createElement('span');
+        span.className = 'ai-highlighted-text';
+        span.textContent = match;
+        
+        // Replace the text node with new structure
+        const fragment = document.createDocumentFragment();
+        if (before) fragment.appendChild(document.createTextNode(before));
+        fragment.appendChild(span);
+        if (after) fragment.appendChild(document.createTextNode(after));
+        
+        node.parentNode.replaceChild(fragment, node);
+        highlightCount++;
+        return true;
+      }
+      return false;
+    }
+    
+    // Search through all text nodes for matches
+    textNodes.forEach(node => {
+      // Skip if node is in the AI chat panel
+      if (node.parentNode.closest('.ai-chat-panel')) {
+        return;
+      }
+      
+      highlightInNode(node, textToFind);
+    });
+    
+    // Report results
+    if (highlightCount > 0) {
+      addMessage(`I've highlighted ${highlightCount} instances of "${textToFind}" on the page.`, 'ai');
+    } else {
+      addMessage(`I couldn't find any instances of "${textToFind}" on the page.`, 'ai');
+    }
+  }
+  
+  // Click an element on the page
+  function clickElement(targetDescription) {
+    if (!targetDescription) {
+      addMessage("What element would you like me to click?", 'ai');
+      return;
+    }
+    
+    // First try to find by exact text content
+    let elements = [...document.querySelectorAll('button, a, [role="button"], input[type="submit"], input[type="button"]')]
+      .filter(el => el.textContent.trim().toLowerCase() === targetDescription.toLowerCase());
+    
+    // If not found, try to find by partial text match
+    if (elements.length === 0) {
+      elements = [...document.querySelectorAll('button, a, [role="button"], input[type="submit"], input[type="button"]')]
+        .filter(el => el.textContent.trim().toLowerCase().includes(targetDescription.toLowerCase()));
+    }
+    
+    // If still not found, try to find by ID, class, or name attributes
+    if (elements.length === 0) {
+      elements = [...document.querySelectorAll(`button[id*="${targetDescription}"], a[id*="${targetDescription}"], 
+        [role="button"][id*="${targetDescription}"], button[class*="${targetDescription}"], 
+        a[class*="${targetDescription}"], [role="button"][class*="${targetDescription}"],
+        button[name*="${targetDescription}"], a[name*="${targetDescription}"]`)]
+        .filter(isElementVisible);
+    }
+    
+    // Filter out invisible elements
+    elements = elements.filter(isElementVisible);
+    
+    if (elements.length > 0) {
+      // If multiple elements found, use the most likely one (first visible one)
+      const element = elements[0];
+      
+      // Highlight the element briefly
+      const originalBg = element.style.backgroundColor;
+      const originalOutline = element.style.outline;
+      
+      element.style.backgroundColor = 'rgba(66, 133, 244, 0.3)';
+      element.style.outline = '2px solid #4285f4';
+      
+      // Scroll to the element
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Click after a short delay
+      setTimeout(() => {
+        // Restore original styles
+        element.style.backgroundColor = originalBg;
+        element.style.outline = originalOutline;
+        
+        // Click the element
+        element.click();
+        
+        addMessage(`I clicked the "${element.textContent.trim() || targetDescription}" element.`, 'ai');
+      }, 1000);
+    } else {
+      addMessage(`I couldn't find any clickable elements matching "${targetDescription}".`, 'ai');
+    }
+  }
+  
+  // Summarize the current page
+  async function summarizePage() {
+    // Add message about summarization in progress
+    addMessage("Analyzing the page to create a summary...", 'ai');
+    
+    // Get relevant content for summarization
+    const mainContent = document.querySelector('main') || 
+                        document.querySelector('article') || 
+                        document.querySelector('.content') || 
+                        document.body;
+    
+    // Extract heading and paragraph text
+    const headings = Array.from(mainContent.querySelectorAll('h1, h2, h3'))
+      .map(h => h.textContent.trim())
+      .filter(text => text.length > 0);
+    
+    const paragraphs = Array.from(mainContent.querySelectorAll('p'))
+      .map(p => p.textContent.trim())
+      .filter(text => text.length > 15); // Filter out very short paragraphs
+    
+    // Prepare content for summarization
+    const title = document.title;
+    const url = window.location.href;
+    
+    let contentToSummarize = `
+      Title: ${title}
+      URL: ${url}
+      Main Headings: ${headings.slice(0, 5).join(' | ')}
+      
+      Content to Summarize:
+      ${paragraphs.slice(0, 10).join('\n\n')}
+    `;
+    
+    // Get API settings
+    const apiSettings = await new Promise(resolve => {
+      chrome.storage.local.get(['apiProvider', 'apiKey'], resolve);
+    });
+    
+    if (!apiSettings.apiKey) {
+      addMessage("Please set up your API key in the extension settings to use the summarization feature.", 'ai');
+      return;
+    }
+    
+    // Create prompt for summarization
+    const prompt = `
+      Please summarize the following webpage content concisely:
+      
+      ${contentToSummarize}
+      
+      Provide a 3-5 sentence summary that captures the main points. 
+      Then list 3-5 key takeaways in bullet point format.
+    `;
+    
+    try {
+      // Call appropriate AI API based on settings
+      let summary;
+      switch (apiSettings.apiProvider) {
+        case 'openai':
+          summary = await callOpenAI(prompt, apiSettings.apiKey);
+          break;
+        case 'anthropic':
+          summary = await callAnthropic(prompt, apiSettings.apiKey);
+          break;
+        case 'gemini':
+          summary = await callGemini(prompt, apiSettings.apiKey);
+          break;
+        default:
+          throw new Error("Invalid API provider");
+      }
+      
+      // Replace the "analyzing" message
+      const analyzeMsg = document.querySelector('.ai-chat-message.ai:last-child');
+      if (analyzeMsg) {
+        const messagesContainer = document.querySelector('.ai-chat-messages');
+        messagesContainer.removeChild(analyzeMsg);
+      }
+      
+      // Add the summary
+      addMessage(`📝 Summary of "${title}":\n\n${summary}`, 'ai');
+      
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      addMessage("Sorry, I encountered an error while trying to summarize this page. Please try again later.", 'ai');
+    }
+  }
+  
+  // Extract data from the page
+  function extractData(dataType) {
+    if (!dataType) {
+      addMessage("What kind of data would you like me to extract from this page?", 'ai');
+      return;
+    }
+    
+    let extractedData = null;
+    
+    // Different extraction strategies based on what's requested
+    switch (dataType.toLowerCase()) {
+      case 'links':
+        extractedData = extractLinks();
+        break;
+      case 'images':
+        extractedData = extractImages();
+        break;
+      case 'tables':
+        extractedData = extractTables();
+        break;
+      case 'emails':
+        extractedData = extractEmails();
+        break;
+      case 'prices':
+        extractedData = extractPrices();
+        break;
+      default:
+        // Try to extract based on the general description
+        extractedData = extractCustomData(dataType);
+    }
+    
+    if (extractedData && extractedData.items && extractedData.items.length > 0) {
+      // Format the response
+      let response = `Here's the ${extractedData.type} I extracted from this page:\n\n`;
+      
+      extractedData.items.forEach((item, index) => {
+        if (index < 15) { // Limit to avoid too long messages
+          response += `${index + 1}. ${item}\n`;
+        }
+      });
+      
+      if (extractedData.items.length > 15) {
+        response += `\n...and ${extractedData.items.length - 15} more items.`;
+      }
+      
+      addMessage(response, 'ai');
+    } else {
+      addMessage(`I couldn't find any ${dataType} on this page.`, 'ai');
+    }
+  }
+  
+  // Helper functions for data extraction
+  function extractLinks() {
+    const links = Array.from(document.querySelectorAll('a[href]'))
+      .filter(link => {
+        // Filter out javascript: links, anchor links, and empty links
+        const href = link.getAttribute('href');
+        return href && href.trim() !== '' && 
+               !href.startsWith('javascript:') && 
+               !href.startsWith('#') &&
+               isElementVisible(link);
+      })
+      .map(link => {
+        return `${link.textContent.trim()} - ${link.href}`;
+      });
+    
+    return {
+      type: 'links',
+      items: links
+    };
+  }
+  
+  function extractImages() {
+    const images = Array.from(document.querySelectorAll('img'))
+      .filter(img => {
+        // Filter out tiny images and hidden images
+        return img.naturalWidth > 50 && 
+               img.naturalHeight > 50 && 
+               isElementVisible(img);
+      })
+      .map(img => {
+        return `${img.alt || 'Image'} - ${img.src}`;
+      });
+    
+    return {
+      type: 'images',
+      items: images
+    };
+  }
+  
+  function extractTables() {
+    const tables = Array.from(document.querySelectorAll('table'))
+      .filter(table => isElementVisible(table))
+      .map((table, index) => {
+        // Get table headers
+        const headers = Array.from(table.querySelectorAll('th'))
+          .map(th => th.textContent.trim());
+        
+        // Get sample of rows (first 3)
+        const sampleRows = Array.from(table.querySelectorAll('tr'))
+          .slice(0, 4)
+          .map(tr => {
+            return Array.from(tr.querySelectorAll('td'))
+              .map(td => td.textContent.trim())
+              .join(' | ');
+          })
+          .filter(row => row); // Remove empty rows
+        
+        return `Table ${index + 1}: [${headers.join(' | ')}]\nSample: ${sampleRows.join('\n')}`;
+      });
+    
+    return {
+      type: 'tables',
+      items: tables
+    };
+  }
+  
+  function extractEmails() {
+    // Get all text content
+    const text = document.body.innerText;
+    
+    // Use regex to find email patterns
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+    const emails = [...new Set(text.match(emailRegex) || [])]; // Use Set to remove duplicates
+    
+    return {
+      type: 'email addresses',
+      items: emails
+    };
+  }
+  
+  function extractPrices() {
+    // Get all text content
+    const text = document.body.innerText;
+    
+    // Use regex to find price patterns
+    const priceRegex = /\$\d+(?:\.\d{2})?|\d+(?:\.\d{2})?\s*(?:USD|EUR|GBP|JPY|CAD|AUD|CHF)/g;
+    const prices = [...new Set(text.match(priceRegex) || [])]; // Use Set to remove duplicates
+    
+    return {
+      type: 'prices',
+      items: prices
+    };
+  }
+  
+  function extractCustomData(description) {
+    // Try to infer what kind of data the user wants
+    const lowerDesc = description.toLowerCase();
+    
+    // Try to find elements that match the description
+    let elements = [];
+    
+    // Check if looking for specific HTML elements
+    if (lowerDesc.includes('heading') || lowerDesc.includes('title')) {
+      elements = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+        .filter(isElementVisible)
+        .map(el => el.textContent.trim());
+    } else if (lowerDesc.includes('paragraph') || lowerDesc.includes('text')) {
+      elements = Array.from(document.querySelectorAll('p'))
+        .filter(isElementVisible)
+        .map(el => el.textContent.trim());
+    } else if (lowerDesc.includes('button')) {
+      elements = Array.from(document.querySelectorAll('button, [role="button"], .btn, input[type="button"], input[type="submit"]'))
+        .filter(isElementVisible)
+        .map(el => el.textContent.trim() || el.value || 'Button');
+    } else if (lowerDesc.includes('list')) {
+      elements = Array.from(document.querySelectorAll('ul, ol'))
+        .filter(isElementVisible)
+        .map((list, index) => {
+          const items = Array.from(list.querySelectorAll('li'))
+            .map(li => li.textContent.trim())
+            .join(', ');
+          return `List ${index + 1}: ${items}`;
+        });
+    } else {
+      // Try a general approach by looking for elements with matching class or id
+      const keywords = description.split(/\s+/);
+      for (const keyword of keywords) {
+        if (keyword.length < 3) continue;
+        
+        const matchingElements = document.querySelectorAll(`[class*="${keyword}"], [id*="${keyword}"]`);
+        if (matchingElements.length > 0) {
+          elements = Array.from(matchingElements)
+            .filter(isElementVisible)
+            .map(el => el.textContent.trim());
+          break;
+        }
+      }
+    }
+    
+    return {
+      type: description,
+      items: elements
+    };
+  }
+  
+  // Infer the topic of the current page
+  function inferPageTopic() {
+    // Get the page title
+    const title = document.title;
+    
+    // Get meta keywords and description
+    const keywords = document.querySelector('meta[name="keywords"]')?.content || '';
+    const description = document.querySelector('meta[name="description"]')?.content || '';
+    
+    // Get h1 headings
+    const h1s = Array.from(document.querySelectorAll('h1')).map(h => h.textContent.trim());
+    
+    // Combine all these signals
+    const signals = [title, keywords, description, ...h1s].filter(s => s).join(' ');
+    
+    // Simple keyword extraction
+    const words = signals.toLowerCase()
+                   .replace(/[^\w\s]/g, '')
+                   .split(/\s+/)
+                   .filter(word => word.length > 3);
+    
+    // Count word frequency
+    const wordCounts = {};
+    words.forEach(word => {
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
+    });
+    
+    // Get top 3 words
+    const topWords = Object.entries(wordCounts)
+                     .sort((a, b) => b[1] - a[1])
+                     .slice(0, 3)
+                     .map(entry => entry[0]);
+    
+    if (topWords.length > 0) {
+      return topWords.join(', ');
+    }
+    
+    return null;
+  }
+  
+  // Set up message listeners for background communication
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'toggleChatPanel') {
+      toggleChatPanel();
+      sendResponse({success: true});
+    } else if (message.action === 'resetSettings') {
+      // Reset any page-specific settings
+      userActionHistory = [];
+      const panel = document.querySelector('.ai-chat-panel');
+      if (panel) {
+        const messagesContainer = panel.querySelector('.ai-chat-messages');
+        messagesContainer.innerHTML = '';
+        addMessage("Settings have been reset. Let me know if you need anything else!", 'ai');
+      }
+      sendResponse({success: true});
+    }
+    
+    return true; // Indicate we want to send a response asynchronously
+  });
+  
+  // Load saved action history
+  chrome.storage.local.get(['userActionHistory'], (result) => {
+    if (result.userActionHistory) {
+      userActionHistory = result.userActionHistory;
+    }
+  });
+
+  // Initialize: create panel but keep it hidden
+  createChatPanel();
+})();

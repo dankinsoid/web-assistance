@@ -1,0 +1,143 @@
+.ai-chat-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 350px;
+  height: 500px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+.ai-chat-panel.collapsed {
+  transform: translateY(calc(100% - 40px));
+}
+
+.ai-chat-header {
+  padding: 10px 15px;
+  background: #4285f4;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.ai-chat-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.ai-chat-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.ai-chat-controls button {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 5px;
+}
+
+.ai-chat-messages {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f5f5f5;
+}
+
+.ai-chat-message {
+  padding: 8px 12px;
+  border-radius: 15px;
+  max-width: 80%;
+  word-break: break-word;
+}
+
+.ai-chat-message.user {
+  align-self: flex-end;
+  background: #4285f4;
+  color: white;
+}
+
+.ai-chat-message.ai {
+  align-self: flex-start;
+  background: white;
+  border: 1px solid #ddd;
+}
+
+.ai-chat-input-container {
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid #ddd;
+}
+
+.ai-chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid #ccc;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 14px;
+  max-height: 100px;
+  min-height: 20px;
+  overflow-y: auto;
+}
+
+.ai-chat-send {
+  align-self: flex-end;
+  background: #4285f4;
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ai-action-button {
+  background: rgba(66, 133, 244, 0.1);
+  border: 1px solid #4285f4;
+  color: #4285f4;
+  border-radius: 15px;
+  padding: 5px 10px;
+  margin: 2px;
+  cursor: pointer;
+  font-size: 12px;
+  display: inline-block;
+}
+
+.ai-action-button:hover {
+  background: rgba(66, 133, 244, 0.2);
+}
+
+.ai-chat-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 5px 10px;
+  gap: 5px;
+  border-top: 1px solid #ddd;
+  background: #f9f9f9;
+}
+
+.ai-highlighted-text {
+  background: rgba(255, 235, 59, 0.5);
+  padding: 0 2px;
+}

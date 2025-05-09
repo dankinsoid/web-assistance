@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Page Assistant</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>AI Page Assistant</h1>
+    <div class="api-settings">
+      <h2>API Settings</h2>
+      <div class="form-group">
+        <label for="api-provider">AI Provider:</label>
+        <select id="api-provider">
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="gemini">Gemini</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="api-key">API Key:</label>
+        <input type="password" id="api-key" placeholder="Enter your API key">
+      </div>
+      <button id="save-api-settings">Save Settings</button>
+    </div>
+    <div class="actions">
+      <button id="toggle-chat-panel">Toggle Chat Panel</button>
+      <button id="reset-settings">Reset All Settings</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
