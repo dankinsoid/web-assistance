@@ -15,6 +15,7 @@
   let initialPanelY = 0;
   let initialPanelWidth = 0;
   let initialPanelHeight = 0;
+  let settingsPopupIframe = null; // To keep track of the settings popup iframe
   
   // Create and add the chat panel to the page
   function createChatPanel() {
@@ -66,7 +67,7 @@
     
     settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation(); // Prevent header drag event
-      chrome.runtime.sendMessage({ action: "openSettingsPopup" });
+      toggleSettingsPopup();
     });
     
     // Close the panel
@@ -112,6 +113,30 @@
     });
     
     return panel;
+  }
+
+  // Toggle the settings popup (iframe)
+  function toggleSettingsPopup() {
+    if (settingsPopupIframe && document.body.contains(settingsPopupIframe)) {
+      settingsPopupIframe.remove();
+      settingsPopupIframe = null;
+    } else {
+      settingsPopupIframe = document.createElement('iframe');
+      settingsPopupIframe.id = 'ai-settings-popup-iframe';
+      settingsPopupIframe.src = chrome.runtime.getURL('popup.html');
+      settingsPopupIframe.style.position = 'fixed';
+      settingsPopupIframe.style.top = '50%';
+      settingsPopupIframe.style.left = '50%';
+      settingsPopupIframe.style.transform = 'translate(-50%, -50%)';
+      settingsPopupIframe.style.width = '400px';
+      settingsPopupIframe.style.height = '550px';
+      settingsPopupIframe.style.border = '1px solid #ccc';
+      settingsPopupIframe.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+      settingsPopupIframe.style.zIndex = '2147483647'; // Max z-index
+      settingsPopupIframe.style.backgroundColor = 'white'; // Opaque background for the iframe content area
+      
+      document.body.appendChild(settingsPopupIframe);
+    }
   }
   
   // Ensure the chat panel is visible
@@ -1157,6 +1182,19 @@
     }
     
     return true; // Indicate we want to send a response asynchronously
+  });
+
+  // Listen for messages from the settings popup iframe (e.g., to close itself)
+  window.addEventListener('message', (event) => {
+    // Check if the message is from our settings iframe and is a close request
+    if (settingsPopupIframe && event.source === settingsPopupIframe.contentWindow) {
+      if (event.data && event.data.action === 'closeSettingsPopupFromIframe') {
+        if (document.body.contains(settingsPopupIframe)) {
+          settingsPopupIframe.remove();
+          settingsPopupIframe = null;
+        }
+      }
+    }
   });
   
   // Load saved action history and chat messages

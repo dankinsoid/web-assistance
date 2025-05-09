@@ -97,7 +97,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Escape to close popup
     if (e.key === 'Escape') {
-      window.close();
+      // If in an iframe, send a message to the parent to close
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ action: 'closeSettingsPopupFromIframe' }, '*');
+      } else {
+        // Fallback for when not in an iframe (e.g., opened directly)
+        window.close();
+      }
     }
   });
 });

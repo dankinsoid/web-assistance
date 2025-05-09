@@ -36,24 +36,12 @@ chrome.commands.onCommand.addListener((command) => {
 
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "openSettingsPopup") {
-    console.log('[background.js] Received openSettingsPopup request');
-    chrome.windows.create({
-      url: chrome.runtime.getURL("popup.html"),
-      type: "popup",
-      width: 400,
-      height: 550 // Adjusted height slightly for typical popup content
-    }, (window) => {
-      if (chrome.runtime.lastError) {
-        console.error('[background.js] Error opening settings window:', chrome.runtime.lastError.message);
-        sendResponse({success: false, error: chrome.runtime.lastError.message});
-      } else {
-        console.log('[background.js] Settings popup window created:', window.id);
-        sendResponse({success: true});
-      }
-    });
-    return true; // Indicate asynchronous response
-  }
+  // Example: if (message.action === "someOtherAction") { /* handle it */ }
+  // The "openSettingsPopup" action is now handled by content.js directly.
+  
   // Handle other messages if any
+  // If no other messages are handled, this listener could be removed or simplified.
+  // For now, keeping the structure in case other messages are added later.
+  console.log('[background.js] Received message (if any other than settings popup):', message);
   return true; // Keep the message channel open for other asynchronous responses
 });
