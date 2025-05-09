@@ -5,6 +5,7 @@
   let chatPanelVisible = false;
   let userActionHistory = [];
   let isPanelCollapsed = false;
+  let chatMessages = []; // Store chat messages
   
   // Create and add the chat panel to the page
   function createChatPanel() {
@@ -120,19 +121,76 @@
       panel.style.display = 'none';
     } else {
       panel.style.display = 'flex';
-      // Add a welcome message if it's the first time opening
-      if (panel.querySelector('.ai-chat-messages').children.length === 0) {
-        addMessage("Hello! I'm your AI assistant. I can help you with this page. Try asking me to translate content, highlight information, click elements, or perform other tasks.", 'ai');
-        
-        // Add quick suggestions based on the page content
-        const pageTopic = inferPageTopic();
-        if (pageTopic) {
-          addMessage(`This page seems to be about ${pageTopic}. Would you like me to summarize it or highlight key points?`, 'ai');
+      
+      // Load previous messages or show welcome message
+      loadChatMessages().then(messagesLoaded => {
+        if (!messagesLoaded) {
+          // Add a welcome message if no previous messages
+          addMessage("Hello! I'm your AI assistant. I can help you with this page. Try asking me to translate content, highlight information, click elements, or perform other tasks.", 'ai');
+          
+          // Add quick suggestions based on the page content
+          const pageTopic = inferPageTopic();
+          if (pageTopic) {
+            addMessage(`This page seems to be about ${pageTopic}. Would you like me to summarize it or highlight key points?`, 'ai');
+          }
         }
-      }
+      });
     }
     
     chatPanelVisible = !chatPanelVisible;
+  }
+  
+  // Load chat messages from chrome.storage
+  async function loadChatMessages() {
+    return new Promise(resolve => {
+      chrome.storage.local.get(['chatMessages', 'pageUrl'], result => {
+        const messagesContainer = document.querySelector('.ai-chat-messages');
+        
+        // Clear existing messages in the DOM
+        messagesContainer.innerHTML = '';
+        
+        // Check if we have messages for this URL
+        if (result.chatMessages && result.chatMessages.length > 0 && result.pageUrl === window.location.href) {
+          chatMessages = result.chatMessages;
+          
+          // Add messages to the DOM
+          chatMessages.forEach(msg => {
+            const message = document.createElement('div');
+            message.className = `ai-chat-message ${msg.sender}`;
+            
+            if (msg.sender === 'ai' && msg.text.includes('[[') && msg.text.includes(']]')) {
+              // Handle action buttons in stored messages
+              const processedText = msg.text.replace(/\[\[(.*?):(.*?)\]\]/g, (match, action, label) => {
+                return `<button class="ai-action-button" data-action="${action}">${label}</button>`;
+              });
+              message.innerHTML = processedText;
+              
+              // Add event listeners to action buttons
+              setTimeout(() => {
+                message.querySelectorAll('.ai-action-button').forEach(button => {
+                  button.addEventListener('click', () => {
+                    const action = button.getAttribute('data-action');
+                    performAction(action);
+                  });
+                });
+              }, 0);
+            } else {
+              message.textContent = msg.text;
+            }
+            
+            messagesContainer.appendChild(message);
+          });
+          
+          // Scroll to bottom
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          resolve(true);
+        } else {
+          // No messages found for this URL or no messages at all
+          chatMessages = [];
+          resolve(false);
+        }
+      });
+    });
   }
   
   // Add a message to the chat
@@ -164,6 +222,18 @@
     
     messagesContainer.appendChild(message);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Store message in memory and in chrome.storage
+    chatMessages.push({ text, sender });
+    saveChatMessages();
+  }
+  
+  // Save chat messages to chrome.storage
+  function saveChatMessages() {
+    chrome.storage.local.set({ 
+      chatMessages: chatMessages,
+      pageUrl: window.location.href
+    });
   }
   
   // Send a message to the AI and display the response
@@ -1024,6 +1094,11 @@
     } else if (message.action === 'resetSettings') {
       // Reset any page-specific settings
       userActionHistory = [];
+      chatMessages = [];
+      
+      // Clear storage for this page
+      chrome.storage.local.remove(['chatMessages', 'pageUrl']);
+      
       const panel = document.querySelector('.ai-chat-panel');
       if (panel) {
         const messagesContainer = panel.querySelector('.ai-chat-messages');
@@ -1031,15 +1106,32 @@
         addMessage("Settings have been reset. Let me know if you need anything else!", 'ai');
       }
       sendResponse({success: true});
+    } else if (message.action === 'clearChat') {
+      // Clear just the chat history
+      chatMessages = [];
+      chrome.storage.local.remove(['chatMessages', 'pageUrl']);
+      
+      const panel = document.querySelector('.ai-chat-panel');
+      if (panel) {
+        const messagesContainer = panel.querySelector('.ai-chat-messages');
+        messagesContainer.innerHTML = '';
+        addMessage("Chat history has been cleared. How can I help you now?", 'ai');
+      }
+      sendResponse({success: true});
     }
     
     return true; // Indicate we want to send a response asynchronously
   });
   
-  // Load saved action history
-  chrome.storage.local.get(['userActionHistory'], (result) => {
+  // Load saved action history and chat messages
+  chrome.storage.local.get(['userActionHistory', 'chatMessages', 'pageUrl'], (result) => {
     if (result.userActionHistory) {
       userActionHistory = result.userActionHistory;
+    }
+    
+    // Only load chat messages if they're for the current URL
+    if (result.chatMessages && result.pageUrl === window.location.href) {
+      chatMessages = result.chatMessages;
     }
   });
 
