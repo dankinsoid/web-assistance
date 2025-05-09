@@ -1,5 +1,7 @@
+// Listen for clicks on the extension icon
 chrome.action.onClicked.addListener((tab) => {
-  chrome.tabs.sendMessage(tab.id, {action: "toggleChatPanel"});
+  // Send a message to the content script to toggle the chat panel
+  chrome.tabs.sendMessage(tab.id, { action: "toggleChatPanel" });
 });
 
 // Listen for keyboard shortcut (Ctrl+Shift+A)
