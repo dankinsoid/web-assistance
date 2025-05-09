@@ -515,7 +515,7 @@
       You can perform actions on the page using special commands:
       - To highlight text: Use [[highlight:text to find]]
       - To click a button or link: Use [[click:element description or text]]
-      - To translate content: Use [[translate:VALID_CSS_SELECTOR]] (e.g., [[translate:p]] or [[translate:#main-article p]]). Do not use descriptive phrases like "textContent" as a selector.
+      - To translate content: Use [[translate:VALID_CSS_SELECTOR]]. Prefer general selectors for content areas (e.g., 'article', 'main', 'p', or a class name you observe in the page context). Avoid guessing specific IDs (e.g., 'div#readme') unless you have strong evidence from the PAGE_CONTEXT that such an ID exists. If unsure, ask for clarification or use [[translate:page]] to translate the whole page.
       - To extract data: Use [[extract:what to extract]]
       
       Include these commands in your response when you can help with the request.
