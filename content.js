@@ -4,7 +4,6 @@
   // State variables
   let chatPanelVisible = false;
   let userActionHistory = [];
-  let isPanelCollapsed = false;
   let chatMessages = []; // Store chat messages
   
   // Panel position and dragging state
@@ -28,7 +27,7 @@
       <div class="ai-chat-header">
         <h3>AI Page Assistant</h3>
         <div class="ai-chat-controls">
-          <button class="ai-chat-collapse">▼</button>
+          <button class="ai-chat-settings">⚙️</button> 
           <button class="ai-chat-close">✕</button>
         </div>
       </div>
@@ -50,7 +49,7 @@
     
     // Add event listeners to chat panel elements
     const header = panel.querySelector('.ai-chat-header');
-    const collapseBtn = panel.querySelector('.ai-chat-collapse');
+    const settingsBtn = panel.querySelector('.ai-chat-settings');
     const closeBtn = panel.querySelector('.ai-chat-close');
     const input = panel.querySelector('.ai-chat-input');
     const sendBtn = panel.querySelector('.ai-chat-send');
@@ -65,9 +64,9 @@
     
     // Toggle collapse state - only when clicking collapse button, not the whole header
     
-    collapseBtn.addEventListener('click', (e) => {
+    settingsBtn.addEventListener('click', (e) => {
       e.stopPropagation(); // Prevent header drag event
-      toggleCollapsePanel();
+      chrome.runtime.sendMessage({ action: "openSettingsPopup" });
     });
     
     // Close the panel
@@ -113,22 +112,6 @@
     });
     
     return panel;
-  }
-  
-  // Toggle the collapsed state of the panel
-  function toggleCollapsePanel() {
-    const panel = document.querySelector('.ai-chat-panel');
-    const collapseBtn = panel.querySelector('.ai-chat-collapse');
-    
-    isPanelCollapsed = !isPanelCollapsed;
-    
-    if (isPanelCollapsed) {
-      panel.classList.add('collapsed');
-      collapseBtn.textContent = '▲';
-    } else {
-      panel.classList.remove('collapsed');
-      collapseBtn.textContent = '▼';
-    }
   }
   
   // Ensure the chat panel is visible

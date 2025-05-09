@@ -33,3 +33,13 @@ chrome.commands.onCommand.addListener((command) => {
     });
   }
 });
+
+// Listen for messages from content scripts
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "openSettingsPopup") {
+    console.log('[background.js] Received openSettingsPopup request');
+    chrome.action.openPopup();
+    sendResponse({success: true});
+  }
+  return true; // Keep the message channel open for asynchronous response
+});
