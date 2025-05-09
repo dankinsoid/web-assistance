@@ -539,7 +539,7 @@
         case 'gemini':
           // Gemini combines system and user prompt for basic models
           const geminiPrompt = `${systemMessage}\n\n${prompt}`;
-          return await _callGemini_API(apiKey, 'gemini-pro', geminiPrompt, max_tokens);
+          return await _callGemini_API(apiKey, 'gemini-1.0-pro', geminiPrompt, max_tokens);
         default:
           return "Please select a valid AI provider in the extension settings.";
       }
@@ -695,7 +695,7 @@
           return await _callAnthropic_API(apiKey, 'claude-3-haiku-20240307', systemPrompt, [{ role: 'user', content: userPrompt }], max_tokens);
         case 'gemini':
           const geminiFullPrompt = `${systemPrompt}\n\n${userPrompt}`;
-          return await _callGemini_API(apiKey, 'gemini-pro', geminiFullPrompt, max_tokens);
+          return await _callGemini_API(apiKey, 'gemini-1.0-pro', geminiFullPrompt, max_tokens);
         default:
           console.warn(`Translation not supported for provider: ${apiProvider}`);
           return `${textToTranslate} (Translation for ${apiProvider} not implemented, target: ${targetLanguage})`;
