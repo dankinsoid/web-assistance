@@ -19,6 +19,7 @@
   
   // Create and add the chat panel to the page
   function createChatPanel() {
+    console.log('[content.js] createChatPanel called');
     const panel = document.createElement('div');
     panel.className = 'ai-chat-panel';
     panel.style.display = 'none'; // Initially hidden
@@ -132,13 +133,17 @@
   
   // Ensure the chat panel is visible
   function ensureChatPanelIsVisible() {
+    console.log('[content.js] ensureChatPanelIsVisible called. chatPanelVisible:', chatPanelVisible);
     const panel = document.querySelector('.ai-chat-panel') || createChatPanel();
     
     const needsInitialization = !chatPanelVisible; // Check if it was previously hidden or is being shown for the first time
+    console.log('[content.js] needsInitialization:', needsInitialization);
 
     panel.style.display = 'flex'; // Always ensure it's set to be visible
+    console.log('[content.js] Panel display set to flex.');
 
     if (needsInitialization) { 
+      console.log('[content.js] Panel needs initialization.');
       // This block runs only if the panel was not visible and is now being made visible.
       restorePanelPositionAndSize(panel);
       
@@ -1134,9 +1139,11 @@
   
   // Set up message listeners for background communication
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('[content.js] Message received:', message);
     if (message.action === 'openChatPanel') {
+      console.log('[content.js] Action "openChatPanel" received.');
       ensureChatPanelIsVisible();
-      sendResponse({success: true});
+      sendResponse({success: true, status: 'Chat panel opened/ensured visible'});
     } else if (message.action === 'resetSettings') {
       // Reset any page-specific settings
       userActionHistory = [];
